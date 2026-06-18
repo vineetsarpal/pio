@@ -29,9 +29,10 @@ The operator dashboard works without Stripe credentials. To create real Stripe C
 ```bash
 STRIPE_SECRET_KEY=sk_test_...
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+STRIPE_WEBHOOK_SECRET=whsec_... # from `stripe listen --forward-to localhost:3000/api/stripe/webhook`
 ```
 
-PIO intentionally accepts only `sk_test_` keys for this demo path. The success redirect is not treated as payment truth; policy activation still depends on the immutable `premium_collected` event boundary.
+PIO intentionally accepts only `sk_test_` keys for this demo path. Stripe webhook requests are verified with `STRIPE_WEBHOOK_SECRET` and normalized from `checkout.session.completed` into PIO's internal `premium_collected` event. The success redirect is not treated as payment truth; policy activation still depends on the immutable webhook event boundary.
 
 ## Testing
 
