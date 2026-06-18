@@ -6,6 +6,10 @@ type LiveStripeCheckoutAdapterConfig = {
   appUrl: string;
 };
 
+type CreateCheckoutOptions = {
+  idempotencyKey?: string;
+};
+
 type StripeCheckoutResponse = {
   id?: string;
   url?: string;
@@ -31,7 +35,11 @@ export class LiveStripeCheckoutAdapter implements Pick<PaymentAdapter, "mode" | 
     this.appUrl = config.appUrl.replace(/\/$/, "");
   }
 
-  async createCheckout(policy: Policy, _customer: PaymentCustomer): Promise<CheckoutSession> {
+  async createCheckout(
+    policy: Policy,
+    _customer: PaymentCustomer,
+    options: CreateCheckoutOptions = {}
+  ): Promise<CheckoutSession> {
     const body = new URLSearchParams();
     body.set("mode", "payment");
     body.set("success_url", `${this.appUrl}/buy/success?session_id={CHECKOUT_SESSION_ID}&policy_id=${policy.id}`);
@@ -39,10 +47,10 @@ export class LiveStripeCheckoutAdapter implements Pick<PaymentAdapter, "mode" | 
     body.set("line_items[0][quantity]", "1");
     body.set("line_items[0][price_data][currency]", policy.premium.currency.toLowerCase());
     body.set("line_items[0][price_data][unit_amount]", String(Math.round(policy.premium.amount * 100)));
-    body.set("line_items[0][price_data][product_data][name]", `${policy.eventName} rain protection demo`);
+    body.set("line_items[0][price_data][product_data][name]", `${policy.eventName} ${checkoutProductLabel(policy)}`);
     body.set(
       "line_items[0][price_data][product_data][description]",
-      `Hackathon demo premium for fixed $${policy.payout.amount} rainfall-trigger workflow. Not real insurance.`
+      `Hackathon demo premium for fixed $${policy.payout.amount} ${checkoutTriggerLabel(policy)} workflow. Not real insurance.`
     );
     body.set("metadata[policy_id]", policy.id);
     body.set("metadata[certificate_id]", policy.certificateId);
@@ -53,7 +61,7 @@ export class LiveStripeCheckoutAdapter implements Pick<PaymentAdapter, "mode" | 
       headers: {
         Authorization: `Bearer ${this.secretKey}`,
         "Content-Type": "application/x-www-form-urlencoded",
-        "Idempotency-Key": `pio-checkout-${policy.id}`
+        "Idempotency-Key": options.idempotencyKey ?? `pio-checkout-${policy.id}`
       },
       body
     });
@@ -72,6 +80,16 @@ export class LiveStripeCheckoutAdapter implements Pick<PaymentAdapter, "mode" | 
       mode: this.mode
     };
   }
+}
+
+function checkoutProductLabel(policy: Policy): string {
+  if (policy.productId === "flight_delay") return "flight delay protection demo";
+  return "rain protection demo";
+}
+
+function checkoutTriggerLabel(policy: Policy): string {
+  if (policy.trigger.variable === "arrival_delay_minutes") return "flight-delay-trigger";
+  return "rainfall-trigger";
 }
 
 export function createLiveStripeCheckoutAdapterFromEnv(): LiveStripeCheckoutAdapter {

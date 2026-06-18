@@ -25,9 +25,14 @@ export default async function BuySuccessPage({
             <dd className="mt-1 break-all font-semibold">{params.policy_id ?? "missing"}</dd>
           </div>
         </dl>
-        <a className="mt-6 inline-block rounded-lg bg-rain px-5 py-3 font-semibold text-white" href="/">
-          Back to operator dashboard
-        </a>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <a className="inline-block rounded-lg bg-rain px-5 py-3 font-semibold text-white" href="/buy">
+            Back to quote workspace
+          </a>
+          <a className="inline-block rounded-lg border border-slate-200 bg-white px-5 py-3 font-semibold text-ink" href="/ops">
+            View operator dashboard
+          </a>
+        </div>
       </div>
     </main>
   );

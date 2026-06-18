@@ -1,0 +1,493 @@
+import type { CoverageProductId, Money, Policy, WeatherEvidence } from "./types";
+
+const USD = (amount: number): Money => ({ amount, currency: "USD" });
+
+export type RainEventQuoteInput = {
+  productId: "rain_event";
+  customerName: string;
+  eventName: string;
+  locationName: string;
+  latitude: number;
+  longitude: number;
+  eventStart: string;
+  eventEnd: string;
+  desiredPayout: Money;
+  maximumPremium?: Money;
+};
+
+export type FlightDelayQuoteInput = {
+  productId: "flight_delay";
+  customerName: string;
+  passengerName: string;
+  airline: string;
+  flightNumber: string;
+  originAirport: string;
+  destinationAirport: string;
+  departureTime: string;
+  arrivalTime: string;
+  desiredPayout: Money;
+  maximumPremium?: Money;
+};
+
+export type ProductQuoteInput = RainEventQuoteInput | FlightDelayQuoteInput;
+
+export type RiskAssessment = {
+  productId: CoverageProductId;
+  source: string;
+  sourceLabel: string;
+  apiStatus: "live" | "demo_fallback" | "demo";
+  apiCall: ApiCallTelemetry;
+  score: number;
+  pricingAdjustment: number;
+  factors: string[];
+  observedMetric: {
+    label: string;
+    value: string;
+  };
+};
+
+export type ApiCallTelemetry = {
+  toolName: string;
+  method: "GET" | "POST" | "SIMULATED";
+  endpoint: string;
+  status: "success" | "fallback" | "simulated";
+  calledAt: string;
+  latencyMs: number;
+  purpose: string;
+};
+
+export type PolicyPacket = {
+  certificateId: string;
+  title: string;
+  insured: string;
+  coverageSummary: string;
+  triggerSummary: string;
+  premiumSummary: string;
+  dataSources: string[];
+  exclusions: string[];
+  issueCondition: string;
+};
+
+export type ProductQuote = {
+  product: {
+    id: CoverageProductId;
+    name: string;
+    tagline: string;
+  };
+  policy: Policy;
+  risk: RiskAssessment;
+  packet: PolicyPacket;
+  agentNarrative: string[];
+};
+
+export interface ProductRiskAdapters {
+  weather?: WeatherPricingApi;
+  flight?: FlightStatusPricingApi;
+}
+
+export interface WeatherPricingApi {
+  getRainEventRisk(input: RainEventQuoteInput): Promise<RiskAssessment>;
+}
+
+export interface FlightStatusPricingApi {
+  getFlightDelayRisk(input: FlightDelayQuoteInput): Promise<RiskAssessment>;
+}
+
+export const coverageProducts = [
+  {
+    id: "rain_event" as const,
+    name: "Rain event protection",
+    tagline: "Fixed payout if rain crosses the covered event trigger.",
+    api: "Weather API",
+    trigger: "Rainfall total > 5 mm"
+  },
+  {
+    id: "flight_delay" as const,
+    name: "Flight delay protection",
+    tagline: "Fixed payout when arrival delay exceeds the covered threshold.",
+    api: "Flight status API",
+    trigger: "Arrival delay > 90 minutes"
+  }
+];
+
+export async function quoteCoverageProduct(
+  input: ProductQuoteInput,
+  adapters: ProductRiskAdapters = {}
+): Promise<ProductQuote> {
+  assertUsd(input.desiredPayout, "desiredPayout");
+  if (input.maximumPremium) assertUsd(input.maximumPremium, "maximumPremium");
+
+  if (input.productId === "rain_event") {
+    const weather = adapters.weather ?? new OpenMeteoPricingApi();
+    const risk = await weather.getRainEventRisk(input);
+    const premium = calculatePremium(input.desiredPayout.amount, 0.034, risk.pricingAdjustment, eventHours(input.eventStart, input.eventEnd));
+    enforcePremiumCap(premium, input.maximumPremium);
+    const policy = buildRainPolicy(input, premium, risk);
+    return buildQuote(input.productId, policy, risk, buildRainPacket(policy, risk));
+  }
+
+  const flight = adapters.flight ?? new DemoFlightStatusPricingApi();
+  const risk = await flight.getFlightDelayRisk(input);
+  const premium = calculatePremium(input.desiredPayout.amount, 0.042, risk.pricingAdjustment, flightHours(input.departureTime, input.arrivalTime));
+  enforcePremiumCap(premium, input.maximumPremium);
+  const policy = buildFlightPolicy(input, premium, risk);
+  return buildQuote(input.productId, policy, risk, buildFlightPacket(policy, risk, input));
+}
+
+export class OpenMeteoPricingApi implements WeatherPricingApi {
+  async getRainEventRisk(input: RainEventQuoteInput): Promise<RiskAssessment> {
+    const calledAt = new Date().toISOString();
+    const startedAt = Date.now();
+    const startDate = input.eventStart.slice(0, 10);
+    const endDate = input.eventEnd.slice(0, 10);
+    const url = new URL("https://api.open-meteo.com/v1/forecast");
+    url.searchParams.set("latitude", String(input.latitude));
+    url.searchParams.set("longitude", String(input.longitude));
+    url.searchParams.set("hourly", "rain");
+    url.searchParams.set("timezone", "auto");
+    url.searchParams.set("start_date", startDate);
+    url.searchParams.set("end_date", endDate);
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Open-Meteo returned ${response.status}`);
+      const payload = (await response.json()) as {
+        hourly?: {
+          time?: string[];
+          rain?: Array<number | null>;
+        };
+      };
+      const rainTotal = sumRainInWindow(payload, input.eventStart, input.eventEnd);
+      return rainRiskFromTotal(
+        rainTotal,
+        url.toString(),
+        "live",
+        buildApiCallTelemetry({
+          toolName: "Open-Meteo weather API",
+          method: "GET",
+          endpoint: url.toString(),
+          status: "success",
+          calledAt,
+          startedAt,
+          purpose: "Fetch hourly rainfall forecast for event-window premium pricing."
+        })
+      );
+    } catch {
+      const fallbackTotal = fallbackRainTotal(input);
+      const endpoint = "pio://demo-weather-pricing-api/fallback-rain-risk";
+      return rainRiskFromTotal(
+        fallbackTotal,
+        endpoint,
+        "demo_fallback",
+        buildApiCallTelemetry({
+          toolName: "Demo weather pricing API",
+          method: "SIMULATED",
+          endpoint,
+          status: "fallback",
+          calledAt,
+          startedAt,
+          purpose: "Use deterministic weather fallback when live weather pricing is unavailable."
+        })
+      );
+    }
+  }
+}
+
+export class DemoFlightStatusPricingApi implements FlightStatusPricingApi {
+  async getFlightDelayRisk(input: FlightDelayQuoteInput): Promise<RiskAssessment> {
+    const calledAt = new Date().toISOString();
+    const startedAt = Date.now();
+    const routeKey = `${input.originAirport.trim().toUpperCase()}-${input.destinationAirport.trim().toUpperCase()}`;
+    const routeProfile = demoFlightDelayProfiles[routeKey] ?? { probability: 0.28, averageDelayMinutes: 34 };
+    const departureHour = new Date(input.departureTime).getHours();
+    const lateDayPenalty = departureHour >= 16 ? 0.12 : departureHour >= 12 ? 0.06 : 0;
+    const routeCongestion = congestedAirports.has(input.originAirport.trim().toUpperCase()) ? 0.08 : 0;
+    const probability = clamp(routeProfile.probability + lateDayPenalty + routeCongestion, 0.08, 0.82);
+    const score = Math.round(probability * 100);
+
+    return {
+      productId: "flight_delay",
+      source: `pio://demo-flight-status-api/routes/${routeKey}`,
+      sourceLabel: "Demo flight status API",
+      apiStatus: "demo",
+      apiCall: buildApiCallTelemetry({
+        toolName: "Demo flight status API",
+        method: "SIMULATED",
+        endpoint: `pio://demo-flight-status-api/routes/${routeKey}`,
+        status: "simulated",
+        calledAt,
+        startedAt,
+        purpose: "Retrieve route delay profile for flight-delay premium pricing."
+      }),
+      score,
+      pricingAdjustment: 0.025 + probability * 0.075,
+      factors: [
+        `${routeKey} historical delay probability ${(routeProfile.probability * 100).toFixed(0)}%`,
+        `Average observed delay ${routeProfile.averageDelayMinutes} minutes`,
+        departureHour >= 16 ? "Late-day departure increases missed-connection and rotation risk" : "Departure time has moderate schedule risk",
+        routeCongestion > 0 ? `${input.originAirport.toUpperCase()} congestion adjustment applied` : "No major origin congestion adjustment"
+      ],
+      observedMetric: {
+        label: "Estimated delay probability",
+        value: `${score}%`
+      }
+    };
+  }
+}
+
+function buildQuote(productId: CoverageProductId, policy: Policy, risk: RiskAssessment, packet: PolicyPacket): ProductQuote {
+  const product = coverageProducts.find((candidate) => candidate.id === productId);
+  if (!product) throw new Error(`Unsupported coverage product ${productId}.`);
+
+  return {
+    product: {
+      id: product.id,
+      name: product.name,
+      tagline: product.tagline
+    },
+    policy,
+    risk,
+    packet,
+    agentNarrative: [
+      `Hermes selected ${product.name} and called the ${risk.sourceLabel}.`,
+      `The risk score is ${risk.score}/100 based on ${risk.observedMetric.label.toLowerCase()} of ${risk.observedMetric.value}.`,
+      `PIO priced a $${policy.premium.amount} premium for a fixed $${policy.payout.amount} payout.`
+    ]
+  };
+}
+
+function buildRainPolicy(input: RainEventQuoteInput, premium: Money, risk: RiskAssessment): Policy {
+  const stableId = stablePolicyId([
+    input.productId,
+    input.customerName,
+    input.eventName,
+    input.locationName,
+    input.eventStart,
+    input.eventEnd,
+    String(input.desiredPayout.amount)
+  ]);
+
+  return {
+    id: `pio-pol-rain-${stableId}`,
+    certificateId: `PIO-RAIN-${stableId.toUpperCase()}`,
+    productId: "rain_event",
+    customerName: input.customerName,
+    eventName: input.eventName,
+    locationName: input.locationName,
+    premium,
+    payout: input.desiredPayout,
+    trigger: {
+      variable: "rainfall_mm",
+      operator: ">",
+      threshold: 5,
+      aggregation: "sum",
+      window: {
+        start: input.eventStart,
+        end: input.eventEnd
+      }
+    },
+    weatherOracleSource: risk.apiStatus === "live" ? "open_meteo" : "demo_replay",
+    riskSource: risk.source,
+    riskScore: risk.score,
+    riskFactors: risk.factors,
+    status: "policy_quoted"
+  };
+}
+
+function buildFlightPolicy(input: FlightDelayQuoteInput, premium: Money, risk: RiskAssessment): Policy {
+  const stableId = stablePolicyId([
+    input.productId,
+    input.customerName,
+    input.passengerName,
+    input.airline,
+    input.flightNumber,
+    input.originAirport,
+    input.destinationAirport,
+    input.departureTime,
+    String(input.desiredPayout.amount)
+  ]);
+
+  return {
+    id: `pio-pol-flight-${stableId}`,
+    certificateId: `PIO-FLIGHT-${stableId.toUpperCase()}`,
+    productId: "flight_delay",
+    customerName: input.customerName,
+    eventName: `${input.airline} ${input.flightNumber}`,
+    locationName: `${input.originAirport.toUpperCase()} to ${input.destinationAirport.toUpperCase()}`,
+    premium,
+    payout: input.desiredPayout,
+    trigger: {
+      variable: "arrival_delay_minutes",
+      operator: ">",
+      threshold: 90,
+      aggregation: "max",
+      window: {
+        start: input.departureTime,
+        end: input.arrivalTime
+      }
+    },
+    weatherOracleSource: "demo_replay",
+    riskSource: risk.source,
+    riskScore: risk.score,
+    riskFactors: risk.factors,
+    status: "policy_quoted"
+  };
+}
+
+function buildRainPacket(policy: Policy, risk: RiskAssessment): PolicyPacket {
+  return {
+    certificateId: policy.certificateId,
+    title: "Parametric rain event protection packet",
+    insured: policy.customerName,
+    coverageSummary: `$${policy.payout.amount} fixed payout for ${policy.eventName} at ${policy.locationName}.`,
+    triggerSummary: `Pays when normalized rainfall exceeds ${policy.trigger.threshold} mm between ${policy.trigger.window.start} and ${policy.trigger.window.end}.`,
+    premiumSummary: `$${policy.premium.amount} premium calculated from a ${risk.score}/100 weather risk score.`,
+    dataSources: [risk.sourceLabel, risk.source],
+    exclusions: ["Demo coverage only", "No payout from incomplete or advisory settlement evidence without review"],
+    issueCondition: "Policy packet issues after Stripe test-mode premium collection is verified by webhook."
+  };
+}
+
+function buildFlightPacket(policy: Policy, risk: RiskAssessment, input: FlightDelayQuoteInput): PolicyPacket {
+  return {
+    certificateId: policy.certificateId,
+    title: "Parametric flight delay protection packet",
+    insured: input.passengerName || policy.customerName,
+    coverageSummary: `$${policy.payout.amount} fixed payout for ${input.airline} ${input.flightNumber} from ${input.originAirport.toUpperCase()} to ${input.destinationAirport.toUpperCase()}.`,
+    triggerSummary: `Pays when arrival delay exceeds ${policy.trigger.threshold} minutes against the covered scheduled arrival time.`,
+    premiumSummary: `$${policy.premium.amount} premium calculated from a ${risk.score}/100 route delay risk score.`,
+    dataSources: [risk.sourceLabel, risk.source],
+    exclusions: ["Demo coverage only", "Cancellations, diversions, and missed connections require separate coverage wording"],
+    issueCondition: "Policy packet issues after Stripe test-mode premium collection is verified by webhook."
+  };
+}
+
+function calculatePremium(payout: number, baseRate: number, riskAdjustment: number, durationHours: number): Money {
+  const durationAdjustment = Math.min(durationHours, 12) * 0.0025;
+  const raw = payout * (baseRate + riskAdjustment + durationAdjustment);
+  return USD(Math.max(12, Math.round(raw)));
+}
+
+function enforcePremiumCap(premium: Money, maximumPremium?: Money): void {
+  if (maximumPremium && premium.amount > maximumPremium.amount) {
+    throw new Error(`Premium ${premium.amount} exceeds the maximum budget ${maximumPremium.amount} for this coverage request.`);
+  }
+}
+
+function rainRiskFromTotal(
+  rainTotal: number,
+  source: string,
+  apiStatus: RiskAssessment["apiStatus"],
+  apiCall: ApiCallTelemetry
+): RiskAssessment {
+  const score = Math.round(clamp(20 + rainTotal * 8, 12, 92));
+  return {
+    productId: "rain_event",
+    source,
+    sourceLabel: apiStatus === "live" ? "Open-Meteo weather API" : "Demo weather pricing API",
+    apiStatus,
+    apiCall,
+    score,
+    pricingAdjustment: 0.018 + score / 1000,
+    factors: [
+      `Forecast rainfall during covered window ${rainTotal.toFixed(1)} mm`,
+      rainTotal > 5 ? "Covered event window is already above the payout trigger in forecast data" : "Covered event window is below trigger but still has weather volatility",
+      "Short-duration outdoor event exposure"
+    ],
+    observedMetric: {
+      label: "Forecast rainfall",
+      value: `${rainTotal.toFixed(1)} mm`
+    }
+  };
+}
+
+function buildApiCallTelemetry({
+  toolName,
+  method,
+  endpoint,
+  status,
+  calledAt,
+  startedAt,
+  purpose
+}: {
+  toolName: string;
+  method: ApiCallTelemetry["method"];
+  endpoint: string;
+  status: ApiCallTelemetry["status"];
+  calledAt: string;
+  startedAt: number;
+  purpose: string;
+}): ApiCallTelemetry {
+  return {
+    toolName,
+    method,
+    endpoint,
+    status,
+    calledAt,
+    latencyMs: Math.max(0, Date.now() - startedAt),
+    purpose
+  };
+}
+
+function sumRainInWindow(
+  payload: { hourly?: { time?: string[]; rain?: Array<number | null> } },
+  eventStart: string,
+  eventEnd: string
+): number {
+  const times = payload.hourly?.time ?? [];
+  const rain = payload.hourly?.rain ?? [];
+  const start = new Date(eventStart).getTime();
+  const end = new Date(eventEnd).getTime();
+
+  return times.reduce((total, time, index) => {
+    const observedAt = new Date(time).getTime();
+    if (observedAt < start || observedAt > end) return total;
+    return total + (rain[index] ?? 0);
+  }, 0);
+}
+
+function fallbackRainTotal(input: RainEventQuoteInput): number {
+  const location = input.locationName.toLowerCase();
+  if (location.includes("waterfront") || location.includes("toronto")) return 6.5;
+  if (location.includes("seattle") || location.includes("vancouver")) return 8.2;
+  if (location.includes("phoenix") || location.includes("las vegas")) return 1.4;
+  return 4.2;
+}
+
+function eventHours(start: string, end: string): number {
+  return Math.max(1, (new Date(end).getTime() - new Date(start).getTime()) / 3_600_000);
+}
+
+function flightHours(start: string, end: string): number {
+  return Math.max(1, (new Date(end).getTime() - new Date(start).getTime()) / 3_600_000);
+}
+
+function stablePolicyId(parts: string[]): string {
+  const input = parts.join("|").toLowerCase();
+  let hash = 0;
+  for (let index = 0; index < input.length; index += 1) {
+    hash = Math.imul(31, hash) + input.charCodeAt(index);
+  }
+  return Math.abs(hash).toString(36).padStart(6, "0").slice(0, 8);
+}
+
+function assertUsd(money: Money, field: string): void {
+  if (money.currency !== "USD") {
+    throw new Error(`${field} must be denominated in USD for this demo.`);
+  }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+const demoFlightDelayProfiles: Record<string, { probability: number; averageDelayMinutes: number }> = {
+  "JFK-LAX": { probability: 0.42, averageDelayMinutes: 48 },
+  "EWR-SFO": { probability: 0.46, averageDelayMinutes: 54 },
+  "ORD-LGA": { probability: 0.39, averageDelayMinutes: 44 },
+  "YYZ-YVR": { probability: 0.34, averageDelayMinutes: 37 },
+  "YYZ-JFK": { probability: 0.31, averageDelayMinutes: 32 },
+  "DFW-ATL": { probability: 0.24, averageDelayMinutes: 26 }
+};
+
+const congestedAirports = new Set(["JFK", "EWR", "LGA", "ORD", "SFO", "YYZ"]);

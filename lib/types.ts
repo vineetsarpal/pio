@@ -30,6 +30,8 @@ export type CoverageRequest = {
   maximumPremium?: Money;
 };
 
+export type CoverageProductId = "rain_event" | "flight_delay";
+
 export type AgentCoverageRequest = CoverageRequest & {
   agentId: string;
   purchaseIntent: "quote_only" | "buy_if_within_budget";
@@ -107,10 +109,10 @@ export type AgentPurchaseConfirmationResponse =
     };
 
 export type TriggerRule = {
-  variable: "rainfall_mm";
+  variable: "rainfall_mm" | "arrival_delay_minutes";
   operator: ">";
   threshold: number;
-  aggregation: "sum";
+  aggregation: "sum" | "max";
   window: {
     start: string;
     end: string;
@@ -172,6 +174,7 @@ export type PayoutResult = {
 export type Policy = {
   id: string;
   certificateId: string;
+  productId?: CoverageProductId;
   customerName: string;
   eventName: string;
   locationName: string;
@@ -179,6 +182,9 @@ export type Policy = {
   payout: Money;
   trigger: TriggerRule;
   weatherOracleSource: WeatherEvidence["source"];
+  riskSource?: string;
+  riskScore?: number;
+  riskFactors?: string[];
   status: PolicyStatus;
   stripePaymentReference?: string;
   stripePayoutReference?: string;

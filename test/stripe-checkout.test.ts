@@ -64,6 +64,36 @@ describe("LiveStripeCheckoutAdapter", () => {
     expect(body.get("cancel_url")).toBe("https://pio.test/buy?checkout=cancelled&policy_id=pio-pol-2026-0001");
   });
 
+  it("allows callers to provide a fresh idempotency key for a checkout attempt", async () => {
+    const policy = quotePolicy(demoCoverageRequest);
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          id: "cs_test_fresh_attempt",
+          url: "https://checkout.stripe.com/c/pay/cs_test_fresh_attempt"
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    );
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const adapter = new LiveStripeCheckoutAdapter({
+      secretKey: "sk_test_123",
+      appUrl: "https://pio.test"
+    });
+
+    await adapter.createCheckout(
+      policy,
+      { id: "cus_local", name: policy.customerName },
+      { idempotencyKey: "pio-buy-checkout-pio-pol-2026-0001-attempt-1" }
+    );
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.headers).toMatchObject({
+      "Idempotency-Key": "pio-buy-checkout-pio-pol-2026-0001-attempt-1"
+    });
+  });
+
   it("surfaces Stripe API failures without returning an unsafe checkout", async () => {
     globalThis.fetch = vi.fn(async () =>
       new Response(JSON.stringify({ error: { message: "No such API key" } }), {
