@@ -1,6 +1,8 @@
 # PIO
 
-PIO is a parametric insurance platform for automated, evidence-grounded weather coverage. It pairs an agent operator (Gauge) with deterministic underwriting and settlement logic so that money movement and claim approval are always controlled by typed functions rather than free-form model output.
+PIO is a hackathon prototype for automated, evidence-grounded parametric coverage operations. It pairs an agent operator (Gauge) with deterministic underwriting and settlement logic so that money movement and claim approval are always controlled by typed functions rather than free-form model output.
+
+**Demo/compliance note:** PIO is not a live insurance product and does not issue real coverage or legally binding payouts. The reference flow uses Stripe test mode to demonstrate premium collection, payout workflow boundaries, and auditability for hackathon purposes.
 
 The reference product is rain cover for outdoor markets:
 
@@ -19,6 +21,17 @@ npm run dev
 ```
 
 Then open `http://localhost:3000`.
+
+### Optional Stripe test checkout
+
+The operator dashboard works without Stripe credentials. To create real Stripe Checkout Sessions in test mode from `/buy`, set:
+
+```bash
+STRIPE_SECRET_KEY=sk_test_...
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+PIO intentionally accepts only `sk_test_` keys for this demo path. The success redirect is not treated as payment truth; policy activation still depends on the immutable `premium_collected` event boundary.
 
 ## Testing
 

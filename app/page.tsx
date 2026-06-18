@@ -42,6 +42,14 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-fog/90 px-4 py-5 text-ink sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-5">
+        <div className="rounded-lg border border-amber/40 bg-amber/10 p-4 text-sm leading-6 text-slate-700">
+          <strong>Hackathon demo only.</strong> PIO demonstrates parametric coverage operations with Stripe
+          test mode. It does not issue real insurance, coverage, or legally binding payouts.
+          <a className="ml-2 font-semibold text-rain" href="/buy">
+            Try the live Stripe test checkout path →
+          </a>
+        </div>
+
         <header className="grid gap-5 rounded-lg border border-white/70 bg-white/90 p-5 shadow-panel backdrop-blur md:grid-cols-[1.15fr_0.85fr]">
           <section className="flex flex-col justify-between gap-6">
             <div>
