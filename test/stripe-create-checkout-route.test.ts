@@ -158,6 +158,7 @@ describe("POST /api/stripe/create-checkout", () => {
           eventStart: "2026-06-20T12:00:00-04:00",
           eventEnd: "2026-06-20T18:00:00-04:00",
           desiredPayout: { amount: 500, currency: "USD" },
+          deductible: { amount: 100, currency: "USD" },
           maximumPremium: { amount: 120, currency: "USD" }
         })
       })
@@ -169,7 +170,12 @@ describe("POST /api/stripe/create-checkout", () => {
       reasonCode: "checkout_created",
       productQuote: {
         product: { id: "rain_event" },
-        policy: { productId: "rain_event" }
+        policy: {
+          productId: "rain_event",
+          coverageAmount: { amount: 500, currency: "USD" },
+          deductible: { amount: 100, currency: "USD" },
+          payout: { amount: 400, currency: "USD" }
+        }
       },
       checkout: {
         id: "cs_test_product_rain_123",

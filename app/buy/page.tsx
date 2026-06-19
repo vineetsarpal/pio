@@ -62,6 +62,8 @@ type ProductQuote = {
     eventName: string;
     locationName: string;
     premium: Money;
+    coverageAmount?: Money;
+    deductible?: Money;
     payout: Money;
     trigger: {
       variable: "rainfall_mm" | "arrival_delay_minutes";
@@ -95,7 +97,7 @@ type RainPayload = {
   eventStart: string;
   eventEnd: string;
   desiredPayout: Money;
-  maximumPremium: Money;
+  deductible: Money;
 };
 
 type FlightPayload = {
@@ -109,7 +111,7 @@ type FlightPayload = {
   departureTime: string;
   arrivalTime: string;
   desiredPayout: Money;
-  maximumPremium: Money;
+  deductible: Money;
 };
 
 type ProductPayload = RainPayload | FlightPayload;
@@ -142,7 +144,7 @@ const defaultRain = {
   eventStart: "2026-06-20T12:00",
   eventEnd: "2026-06-20T18:00",
   desiredPayout: "500",
-  maximumPremium: "85"
+  deductible: "0"
 };
 
 const defaultFlight = {
@@ -155,8 +157,12 @@ const defaultFlight = {
   departureTime: "2026-06-21T17:15",
   arrivalTime: "2026-06-21T19:30",
   desiredPayout: "400",
-  maximumPremium: "90"
+  deductible: "0"
 };
+
+const rainCoverageAmounts = ["250", "500", "1000"];
+const flightCoverageAmounts = ["200", "400", "800"];
+const deductibleAmounts = ["0", "50", "100"];
 
 export default function BuyPage() {
   const [activeProduct, setActiveProduct] = useState<ProductId>("rain_event");
@@ -373,8 +379,8 @@ function RainFields() {
       />
       <Field name="eventStart" label="Event start" defaultValue={defaultRain.eventStart} type="datetime-local" />
       <Field name="eventEnd" label="Event end" defaultValue={defaultRain.eventEnd} type="datetime-local" />
-      <Field name="desiredPayout" label="Desired payout USD" defaultValue={defaultRain.desiredPayout} />
-      <Field name="maximumPremium" label="Maximum premium USD" defaultValue={defaultRain.maximumPremium} />
+      <CoverageAmountField defaultValue={defaultRain.desiredPayout} options={rainCoverageAmounts} />
+      <DeductibleField defaultValue={defaultRain.deductible} />
     </>
   );
 }
@@ -390,8 +396,8 @@ function FlightFields() {
       <Field name="destinationAirport" label="Destination airport" defaultValue={defaultFlight.destinationAirport} />
       <Field name="departureTime" label="Departure time" defaultValue={defaultFlight.departureTime} type="datetime-local" />
       <Field name="arrivalTime" label="Scheduled arrival" defaultValue={defaultFlight.arrivalTime} type="datetime-local" />
-      <Field name="desiredPayout" label="Desired payout USD" defaultValue={defaultFlight.desiredPayout} />
-      <Field name="maximumPremium" label="Maximum premium USD" defaultValue={defaultFlight.maximumPremium} />
+      <CoverageAmountField defaultValue={defaultFlight.desiredPayout} options={flightCoverageAmounts} />
+      <DeductibleField defaultValue={defaultFlight.deductible} />
     </>
   );
 }
@@ -409,9 +415,11 @@ function QuoteResult({
     <div className="mt-6 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
       <div className="quiet p-5">
         <p className="kicker">Dynamic price</p>
-        <div className="mt-4 grid grid-cols-3 gap-px border border-line bg-line">
+        <div className="mt-4 grid grid-cols-2 gap-px border border-line bg-line sm:grid-cols-5">
           <Metric label="Premium" value={`$${quote.policy.premium.amount}`} />
-          <Metric label="Payout" value={`$${quote.policy.payout.amount}`} />
+          <Metric label="Coverage" value={`$${quote.policy.coverageAmount?.amount ?? quote.policy.payout.amount}`} />
+          <Metric label="Deductible" value={`$${quote.policy.deductible?.amount ?? 0}`} />
+          <Metric label="Net payout" value={`$${quote.policy.payout.amount}`} />
           <Metric label="Risk" value={`${quote.risk.score}/100`} />
         </div>
         <div className="mt-4 border border-mint/40 bg-card p-4">
@@ -570,6 +578,42 @@ function Field({
   );
 }
 
+function CoverageAmountField({ defaultValue, options }: { defaultValue: string; options: string[] }) {
+  return (
+    <label className="block">
+      <span className="font-mono text-[0.66rem] uppercase tracking-wider text-ink-soft">Coverage amount</span>
+      <select className="field-input" name="desiredPayout" defaultValue={defaultValue}>
+        {options.map((amount) => (
+          <option key={amount} value={amount}>
+            ${Number(amount).toLocaleString("en-US")}
+          </option>
+        ))}
+      </select>
+      <span className="mt-1 block text-xs leading-5 text-ink-soft">
+        Maximum benefit before the deductible.
+      </span>
+    </label>
+  );
+}
+
+function DeductibleField({ defaultValue }: { defaultValue: string }) {
+  return (
+    <label className="block">
+      <span className="font-mono text-[0.66rem] uppercase tracking-wider text-ink-soft">Deductible</span>
+      <select className="field-input" name="deductible" defaultValue={defaultValue}>
+        {deductibleAmounts.map((amount) => (
+          <option key={amount} value={amount}>
+            ${amount}
+          </option>
+        ))}
+      </select>
+      <span className="mt-1 block text-xs leading-5 text-ink-soft">
+        Subtracted from the payout when the trigger occurs.
+      </span>
+    </label>
+  );
+}
+
 function buildRainPayload(form: FormData): RainPayload {
   return {
     productId: "rain_event",
@@ -581,7 +625,7 @@ function buildRainPayload(form: FormData): RainPayload {
     eventStart: readString(form, "eventStart"),
     eventEnd: readString(form, "eventEnd"),
     desiredPayout: { amount: readNumber(form, "desiredPayout"), currency: "USD" },
-    maximumPremium: { amount: readNumber(form, "maximumPremium"), currency: "USD" }
+    deductible: { amount: readNumber(form, "deductible"), currency: "USD" }
   };
 }
 
@@ -597,7 +641,7 @@ function buildFlightPayload(form: FormData): FlightPayload {
     departureTime: readString(form, "departureTime"),
     arrivalTime: readString(form, "arrivalTime"),
     desiredPayout: { amount: readNumber(form, "desiredPayout"), currency: "USD" },
-    maximumPremium: { amount: readNumber(form, "maximumPremium"), currency: "USD" }
+    deductible: { amount: readNumber(form, "deductible"), currency: "USD" }
   };
 }
 

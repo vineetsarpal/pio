@@ -12,6 +12,7 @@ export type RainEventQuoteInput = {
   eventStart: string;
   eventEnd: string;
   desiredPayout: Money;
+  deductible?: Money;
   maximumPremium?: Money;
 };
 
@@ -26,6 +27,7 @@ export type FlightDelayQuoteInput = {
   departureTime: string;
   arrivalTime: string;
   desiredPayout: Money;
+  deductible?: Money;
   maximumPremium?: Money;
 };
 
@@ -120,17 +122,21 @@ export async function quoteCoverageProduct(
   if (input.productId === "rain_event") {
     const weather = adapters.weather ?? new OpenMeteoPricingApi();
     const risk = await weather.getRainEventRisk(input);
-    const premium = calculatePremium(input.desiredPayout.amount, 0.034, risk.pricingAdjustment, eventHours(input.eventStart, input.eventEnd));
+    const deductible = input.deductible ?? USD(0);
+    const payout = payoutAfterDeductible(input.desiredPayout, deductible);
+    const premium = calculatePremium(payout.amount, 0.034, risk.pricingAdjustment, eventHours(input.eventStart, input.eventEnd));
     enforcePremiumCap(premium, input.maximumPremium);
-    const policy = buildRainPolicy(input, premium, risk);
+    const policy = buildRainPolicy(input, premium, risk, deductible, payout);
     return buildQuote(input.productId, policy, risk, buildRainPacket(policy, risk));
   }
 
   const flight = adapters.flight ?? new DemoFlightStatusPricingApi();
   const risk = await flight.getFlightDelayRisk(input);
-  const premium = calculatePremium(input.desiredPayout.amount, 0.042, risk.pricingAdjustment, flightHours(input.departureTime, input.arrivalTime));
+  const deductible = input.deductible ?? USD(0);
+  const payout = payoutAfterDeductible(input.desiredPayout, deductible);
+  const premium = calculatePremium(payout.amount, 0.042, risk.pricingAdjustment, flightHours(input.departureTime, input.arrivalTime));
   enforcePremiumCap(premium, input.maximumPremium);
-  const policy = buildFlightPolicy(input, premium, risk);
+  const policy = buildFlightPolicy(input, premium, risk, deductible, payout);
   return buildQuote(input.productId, policy, risk, buildFlightPacket(policy, risk, input));
 }
 
@@ -251,12 +257,20 @@ function buildQuote(productId: CoverageProductId, policy: Policy, risk: RiskAsse
     agentNarrative: [
       `Hermes selected ${product.name} and called the ${risk.sourceLabel}.`,
       `The risk score is ${risk.score}/100 based on ${risk.observedMetric.label.toLowerCase()} of ${risk.observedMetric.value}.`,
-      `PIO priced a $${policy.premium.amount} premium for a fixed $${policy.payout.amount} payout.`
+      `PIO priced a $${policy.premium.amount} premium for a fixed $${policy.payout.amount} payout${
+        (policy.deductible?.amount ?? 0) > 0 ? ` after the $${policy.deductible?.amount} deductible` : ""
+      }.`
     ]
   };
 }
 
-function buildRainPolicy(input: RainEventQuoteInput, premium: Money, risk: RiskAssessment): Policy {
+function buildRainPolicy(
+  input: RainEventQuoteInput,
+  premium: Money,
+  risk: RiskAssessment,
+  deductible: Money,
+  payout: Money
+): Policy {
   const stableId = stablePolicyId([
     input.productId,
     input.customerName,
@@ -264,7 +278,8 @@ function buildRainPolicy(input: RainEventQuoteInput, premium: Money, risk: RiskA
     input.locationName,
     input.eventStart,
     input.eventEnd,
-    String(input.desiredPayout.amount)
+    String(input.desiredPayout.amount),
+    String(deductible.amount)
   ]);
 
   return {
@@ -275,7 +290,9 @@ function buildRainPolicy(input: RainEventQuoteInput, premium: Money, risk: RiskA
     eventName: input.eventName,
     locationName: input.locationName,
     premium,
-    payout: input.desiredPayout,
+    coverageAmount: input.desiredPayout,
+    deductible,
+    payout,
     trigger: {
       variable: "rainfall_mm",
       operator: ">",
@@ -294,7 +311,13 @@ function buildRainPolicy(input: RainEventQuoteInput, premium: Money, risk: RiskA
   };
 }
 
-function buildFlightPolicy(input: FlightDelayQuoteInput, premium: Money, risk: RiskAssessment): Policy {
+function buildFlightPolicy(
+  input: FlightDelayQuoteInput,
+  premium: Money,
+  risk: RiskAssessment,
+  deductible: Money,
+  payout: Money
+): Policy {
   const stableId = stablePolicyId([
     input.productId,
     input.customerName,
@@ -304,7 +327,8 @@ function buildFlightPolicy(input: FlightDelayQuoteInput, premium: Money, risk: R
     input.originAirport,
     input.destinationAirport,
     input.departureTime,
-    String(input.desiredPayout.amount)
+    String(input.desiredPayout.amount),
+    String(deductible.amount)
   ]);
 
   return {
@@ -315,7 +339,9 @@ function buildFlightPolicy(input: FlightDelayQuoteInput, premium: Money, risk: R
     eventName: `${input.airline} ${input.flightNumber}`,
     locationName: `${input.originAirport.toUpperCase()} to ${input.destinationAirport.toUpperCase()}`,
     premium,
-    payout: input.desiredPayout,
+    coverageAmount: input.desiredPayout,
+    deductible,
+    payout,
     trigger: {
       variable: "arrival_delay_minutes",
       operator: ">",
@@ -339,7 +365,7 @@ function buildRainPacket(policy: Policy, risk: RiskAssessment): PolicyPacket {
     certificateId: policy.certificateId,
     title: "Parametric rain event protection packet",
     insured: policy.customerName,
-    coverageSummary: `$${policy.payout.amount} fixed payout for ${policy.eventName} at ${policy.locationName}.`,
+    coverageSummary: `${coverageTerms(policy)} for ${policy.eventName} at ${policy.locationName}.`,
     triggerSummary: `Pays when normalized rainfall exceeds ${policy.trigger.threshold} mm between ${policy.trigger.window.start} and ${policy.trigger.window.end}.`,
     premiumSummary: `$${policy.premium.amount} premium calculated from a ${risk.score}/100 weather risk score.`,
     dataSources: [risk.sourceLabel, risk.source],
@@ -353,7 +379,7 @@ function buildFlightPacket(policy: Policy, risk: RiskAssessment, input: FlightDe
     certificateId: policy.certificateId,
     title: "Parametric flight delay protection packet",
     insured: input.passengerName || policy.customerName,
-    coverageSummary: `$${policy.payout.amount} fixed payout for ${input.airline} ${input.flightNumber} from ${input.originAirport.toUpperCase()} to ${input.destinationAirport.toUpperCase()}.`,
+    coverageSummary: `${coverageTerms(policy)} for ${input.airline} ${input.flightNumber} from ${input.originAirport.toUpperCase()} to ${input.destinationAirport.toUpperCase()}.`,
     triggerSummary: `Pays when arrival delay exceeds ${policy.trigger.threshold} minutes against the covered scheduled arrival time.`,
     premiumSummary: `$${policy.premium.amount} premium calculated from a ${risk.score}/100 route delay risk score.`,
     dataSources: [risk.sourceLabel, risk.source],
@@ -366,6 +392,24 @@ function calculatePremium(payout: number, baseRate: number, riskAdjustment: numb
   const durationAdjustment = Math.min(durationHours, 12) * 0.0025;
   const raw = payout * (baseRate + riskAdjustment + durationAdjustment);
   return USD(Math.max(12, Math.round(raw)));
+}
+
+function payoutAfterDeductible(coverageAmount: Money, deductible: Money): Money {
+  assertUsd(deductible, "deductible");
+  if (!Number.isFinite(deductible.amount) || deductible.amount < 0) {
+    throw new Error("deductible must be a non-negative amount.");
+  }
+  if (deductible.amount >= coverageAmount.amount) {
+    throw new Error("deductible must be less than the coverage amount.");
+  }
+  return USD(coverageAmount.amount - deductible.amount);
+}
+
+function coverageTerms(policy: Policy): string {
+  const coverageAmount = policy.coverageAmount ?? policy.payout;
+  const deductible = policy.deductible ?? USD(0);
+  const deductibleTerms = deductible.amount > 0 ? `a $${deductible.amount} deductible` : "no deductible";
+  return `$${coverageAmount.amount} coverage with ${deductibleTerms} and a $${policy.payout.amount} fixed payout`;
 }
 
 function enforcePremiumCap(premium: Money, maximumPremium?: Money): void {
