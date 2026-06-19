@@ -4,6 +4,7 @@ import {
   handlePayoutCompletedEvent,
   handlePayoutFailedEvent,
   handlePayoutRequestedEvent,
+  handlePolicyIssuanceEvent,
   handlePremiumCollectedEvent
 } from "@/lib/payment-events";
 import { InMemoryPolicyStore } from "@/lib/policy-store";
@@ -93,6 +94,77 @@ describe("payment events", () => {
     expect(first.idempotentReplay).toBe(false);
     expect(second.idempotentReplay).toBe(true);
     expect(second.paymentEvent).toEqual(first.paymentEvent);
+  });
+
+  it("issues a paid policy and records a policy_issued workflow event", async () => {
+    const { store, policy } = await quotedStore();
+    await handlePremiumCollectedEvent(
+      {
+        providerEventId: "evt_test_pi_for_issue",
+        checkoutId: "pi_test_for_issue",
+        policyId: policy.id,
+        amount: policy.premium,
+        mode: "stripe_test_mode",
+        paidAt: "2026-06-17T09:02:15-04:00"
+      },
+      store
+    );
+
+    const result = await handlePolicyIssuanceEvent(
+      { policyId: policy.id, issuedAt: "2026-06-17T09:02:18-04:00" },
+      store
+    );
+
+    expect(result.accepted).toBe(true);
+    if (!result.accepted) throw new Error("Expected the policy to be issued.");
+    expect(result.policy.status).toBe("policy_issued");
+    expect(result.policy.issuedAt).toBe("2026-06-17T09:02:18-04:00");
+    expect(result.idempotentReplay).toBe(false);
+
+    const snapshot = await store.snapshotForPolicy(policy.id);
+    expect(snapshot.workflowEvents.some((event) => event.kind === "policy_issued")).toBe(true);
+  });
+
+  it("replays issuance idempotently once the policy is already issued", async () => {
+    const { store, policy } = await quotedStore();
+    await handlePremiumCollectedEvent(
+      {
+        providerEventId: "evt_test_pi_for_issue_replay",
+        checkoutId: "pi_test_for_issue_replay",
+        policyId: policy.id,
+        amount: policy.premium,
+        mode: "stripe_test_mode",
+        paidAt: "2026-06-17T09:02:15-04:00"
+      },
+      store
+    );
+
+    const first = await handlePolicyIssuanceEvent(
+      { policyId: policy.id, issuedAt: "2026-06-17T09:02:18-04:00" },
+      store
+    );
+    const second = await handlePolicyIssuanceEvent(
+      { policyId: policy.id, issuedAt: "2026-06-17T09:09:99-04:00" },
+      store
+    );
+
+    expect(first.accepted && second.accepted).toBe(true);
+    if (!second.accepted) throw new Error("Expected idempotent issuance replay.");
+    expect(second.idempotentReplay).toBe(true);
+    expect(second.policy.issuedAt).toBe("2026-06-17T09:02:18-04:00");
+  });
+
+  it("refuses to issue a policy whose premium has not been collected", async () => {
+    const { store, policy } = await quotedStore();
+
+    const result = await handlePolicyIssuanceEvent(
+      { policyId: policy.id, issuedAt: "2026-06-17T09:02:18-04:00" },
+      store
+    );
+
+    expect(result.accepted).toBe(false);
+    if (result.accepted) throw new Error("Expected issuance to be refused.");
+    expect(result.reasonCode).toBe("invalid_policy_state");
   });
 
   it("rejects premium_collected events with mismatched amounts", async () => {
