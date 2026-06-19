@@ -43,7 +43,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${display.variable} ${sans.variable} ${mono.variable} min-h-screen font-sans text-ink`}
+        className={`${display.variable} ${sans.variable} ${mono.variable} flex min-h-screen flex-col font-sans text-ink`}
       >
         <header className="border-b-2 border-ink bg-card/80 backdrop-blur-sm">
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
@@ -79,7 +79,7 @@ export default function RootLayout({
           </div>
         </header>
 
-        {children}
+        <div className="flex-1">{children}</div>
 
         <footer className="mt-2 border-t-2 border-ink bg-card/70">
           <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-6 font-mono text-[0.66rem] uppercase tracking-wider text-ink-soft sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">

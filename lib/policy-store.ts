@@ -67,6 +67,8 @@ export interface PolicyStore {
   snapshotForPolicy(policyId: string): Promise<PolicyLedgerSnapshot>;
   /** Operator review queue built from targeted queries rather than a full ledger load. */
   getOperatorReviewQueue(): Promise<OperatorReviewItem[]>;
+  /** All policy rows, no events — the lightweight query behind the operator list. */
+  listPolicies(): Promise<Policy[]>;
 }
 
 export class InMemoryPolicyStore implements PolicyStore {
@@ -194,6 +196,10 @@ export class InMemoryPolicyStore implements PolicyStore {
 
   async getOperatorReviewQueue(): Promise<OperatorReviewItem[]> {
     return buildOperatorReviewQueue(await this.snapshot());
+  }
+
+  async listPolicies(): Promise<Policy[]> {
+    return Array.from(this.policies.values()).map((policy) => structuredClone(policy));
   }
 }
 

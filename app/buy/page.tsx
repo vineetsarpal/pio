@@ -928,6 +928,42 @@ function DeductibleField({ defaultValue }: { defaultValue: string }) {
   );
 }
 
+function CoverageAmountField({ defaultValue, options }: { defaultValue: string; options: string[] }) {
+  return (
+    <label className="block">
+      <span className="font-mono text-[0.66rem] uppercase tracking-wider text-ink-soft">Coverage amount</span>
+      <select className="field-input" name="desiredPayout" defaultValue={defaultValue}>
+        {options.map((amount) => (
+          <option key={amount} value={amount}>
+            ${Number(amount).toLocaleString("en-US")}
+          </option>
+        ))}
+      </select>
+      <span className="mt-1 block text-xs leading-5 text-ink-soft">
+        Maximum benefit before the deductible.
+      </span>
+    </label>
+  );
+}
+
+function DeductibleField({ defaultValue }: { defaultValue: string }) {
+  return (
+    <label className="block">
+      <span className="font-mono text-[0.66rem] uppercase tracking-wider text-ink-soft">Deductible</span>
+      <select className="field-input" name="deductible" defaultValue={defaultValue}>
+        {deductibleAmounts.map((amount) => (
+          <option key={amount} value={amount}>
+            ${amount}
+          </option>
+        ))}
+      </select>
+      <span className="mt-1 block text-xs leading-5 text-ink-soft">
+        Subtracted from the payout when the trigger occurs.
+      </span>
+    </label>
+  );
+}
+
 function buildRainPayload(form: FormData): RainPayload {
   return {
     productId: "rain_event",
