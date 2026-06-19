@@ -64,6 +64,37 @@ describe("quoteCoverageProduct", () => {
     expect(quote.packet.triggerSummary).toContain("arrival delay exceeds 90 minutes");
   });
 
+  it("prices the net payout after applying a deductible", async () => {
+    const quoteWithoutDeductible = await quoteCoverageProduct(flightRequest, {
+      flight: new DemoFlightStatusPricingApi()
+    });
+    const quote = await quoteCoverageProduct(
+      {
+        ...flightRequest,
+        deductible: { amount: 100, currency: "USD" }
+      },
+      { flight: new DemoFlightStatusPricingApi() }
+    );
+
+    expect(quote.policy.coverageAmount).toEqual({ amount: 400, currency: "USD" });
+    expect(quote.policy.deductible).toEqual({ amount: 100, currency: "USD" });
+    expect(quote.policy.payout).toEqual({ amount: 300, currency: "USD" });
+    expect(quote.policy.premium.amount).toBeLessThan(quoteWithoutDeductible.policy.premium.amount);
+    expect(quote.packet.coverageSummary).toContain("$400 coverage with a $100 deductible");
+  });
+
+  it("rejects a deductible that is not below the coverage amount", async () => {
+    await expect(
+      quoteCoverageProduct(
+        {
+          ...flightRequest,
+          deductible: { amount: 400, currency: "USD" }
+        },
+        { flight: new DemoFlightStatusPricingApi() }
+      )
+    ).rejects.toThrow("deductible must be less than the coverage amount");
+  });
+
   it("rejects quotes above the customer's maximum premium", async () => {
     await expect(
       quoteCoverageProduct(

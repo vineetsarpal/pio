@@ -179,6 +179,8 @@ export type Policy = {
   eventName: string;
   locationName: string;
   premium: Money;
+  coverageAmount?: Money;
+  deductible?: Money;
   payout: Money;
   trigger: TriggerRule;
   weatherOracleSource: WeatherEvidence["source"];
