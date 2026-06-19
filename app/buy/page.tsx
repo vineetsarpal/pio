@@ -4,6 +4,7 @@ import type { FormEvent, ReactNode } from "react";
 import { useState } from "react";
 import { Activity, CalendarClock, CloudRain, Plane, ShieldCheck, Sparkles } from "lucide-react";
 import dynamic from "next/dynamic";
+import type { FlightLookupResult } from "@/lib/aerodatabox";
 
 const LocationPicker = dynamic(() => import("@/components/LocationPicker"), {
   ssr: false,
@@ -163,6 +164,26 @@ const defaultFlight = {
 const rainCoverageAmounts = ["250", "500", "1000"];
 const flightCoverageAmounts = ["200", "400", "800"];
 const deductibleAmounts = ["0", "50", "100"];
+const airlineOptions = [
+  { value: "Air Canada", label: "Air Canada (AC)" },
+  { value: "WestJet", label: "WestJet (WS)" },
+  { value: "Porter Airlines", label: "Porter Airlines (PD)" },
+  { value: "American Airlines", label: "American Airlines (AA)" },
+  { value: "Delta Air Lines", label: "Delta Air Lines (DL)" },
+  { value: "United Airlines", label: "United Airlines (UA)" }
+];
+const airportOptions = [
+  { value: "YYZ", label: "YYZ — Toronto Pearson" },
+  { value: "YVR", label: "YVR — Vancouver" },
+  { value: "JFK", label: "JFK — New York Kennedy" },
+  { value: "LGA", label: "LGA — New York LaGuardia" },
+  { value: "EWR", label: "EWR — Newark" },
+  { value: "LAX", label: "LAX — Los Angeles" },
+  { value: "SFO", label: "SFO — San Francisco" },
+  { value: "ORD", label: "ORD — Chicago O'Hare" },
+  { value: "ATL", label: "ATL — Atlanta" },
+  { value: "DFW", label: "DFW — Dallas/Fort Worth" }
+];
 
 export default function BuyPage() {
   const [activeProduct, setActiveProduct] = useState<ProductId>("rain_event");
@@ -176,43 +197,57 @@ export default function BuyPage() {
     const payload = activeProduct === "rain_event" ? buildRainPayload(form) : buildFlightPayload(form);
 
     setState({ status: "loading" });
-    const response = await fetch("/api/products/quote", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const result = await response.json();
+    try {
+      const response = await fetch("/api/products/quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json();
 
-    if (!response.ok || !result.accepted) {
-      setState({ status: "error", message: result.message ?? "Unable to quote coverage." });
-      return;
+      if (!response.ok || !result.accepted) {
+        setState({ status: "error", message: result.message ?? "Unable to quote coverage." });
+        return;
+      }
+
+      setState({ status: "quoted", quote: result.quote, payload });
+    } catch {
+      setState({
+        status: "error",
+        message: "Unable to reach the quote service. Check your connection and try again."
+      });
     }
-
-    setState({ status: "quoted", quote: result.quote, payload });
   }
 
   async function createCheckout() {
     if (state.status !== "quoted") return;
 
     setState({ status: "loading" });
-    const response = await fetch("/api/stripe/create-checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(state.payload)
-    });
-    const result = await response.json();
+    try {
+      const response = await fetch("/api/stripe/create-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(state.payload)
+      });
+      const result = await response.json();
 
-    if (!response.ok || !result.accepted) {
-      setState({ status: "error", message: result.message ?? "Unable to create checkout." });
-      return;
+      if (!response.ok || !result.accepted) {
+        setState({ status: "error", message: result.message ?? "Unable to create checkout." });
+        return;
+      }
+
+      setState({
+        status: "checkout",
+        quote: result.productQuote ?? state.quote,
+        checkoutUrl: result.checkout.url,
+        checkoutId: result.checkout.id
+      });
+    } catch {
+      setState({
+        status: "error",
+        message: "Unable to reach Stripe checkout. Check your connection and try again."
+      });
     }
-
-    setState({
-      status: "checkout",
-      quote: result.productQuote ?? state.quote,
-      checkoutUrl: result.checkout.url,
-      checkoutId: result.checkout.id
-    });
   }
 
   return (
@@ -386,16 +421,225 @@ function RainFields() {
 }
 
 function FlightFields() {
+  const [flight, setFlight] = useState({
+    airline: defaultFlight.airline,
+    flightNumber: defaultFlight.flightNumber,
+    originAirport: defaultFlight.originAirport,
+    destinationAirport: defaultFlight.destinationAirport,
+    departureTime: defaultFlight.departureTime,
+    arrivalTime: defaultFlight.arrivalTime
+  });
+  const [lookupDate, setLookupDate] = useState(defaultFlight.departureTime.slice(0, 10));
+  const [lookupState, setLookupState] = useState<
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "results"; results: FlightLookupResult[] }
+    | { status: "selected"; result: FlightLookupResult }
+    | { status: "empty" }
+    | { status: "error"; message: string }
+  >({ status: "idle" });
+
+  function updateFlightField(field: keyof typeof flight, value: string) {
+    setFlight((current) => ({ ...current, [field]: value }));
+    setLookupState((current) => (current.status === "loading" ? current : { status: "idle" }));
+  }
+
+  async function lookupFlight() {
+    setLookupState({ status: "loading" });
+    try {
+      const params = new URLSearchParams({ flightNumber: flight.flightNumber, date: lookupDate });
+      const response = await fetch(`/api/flights/lookup?${params}`);
+      const data = (await response.json()) as { results?: FlightLookupResult[]; message?: string };
+      if (!response.ok) throw new Error(data.message ?? "Unable to look up this flight.");
+      const results = data.results ?? [];
+      if (results.length === 0) {
+        setLookupState({ status: "empty" });
+        return;
+      }
+      if (results.length === 1) {
+        selectFlight(results[0]);
+        return;
+      }
+      setLookupState({ status: "results", results });
+    } catch (error) {
+      setLookupState({
+        status: "error",
+        message: error instanceof Error ? error.message : "Unable to look up this flight."
+      });
+    }
+  }
+
+  function selectFlight(result: FlightLookupResult) {
+    setFlight({
+      airline: result.airline,
+      flightNumber: result.flightNumber,
+      originAirport: result.originAirport,
+      destinationAirport: result.destinationAirport,
+      departureTime: toDateTimeLocal(result.departureTime),
+      arrivalTime: toDateTimeLocal(result.arrivalTime)
+    });
+    setLookupState({ status: "selected", result });
+  }
+
   return (
     <>
-      <Field name="customerName" label="Customer" defaultValue={defaultFlight.customerName} />
-      <Field name="passengerName" label="Passenger" defaultValue={defaultFlight.passengerName} />
-      <Field name="airline" label="Airline" defaultValue={defaultFlight.airline} />
-      <Field name="flightNumber" label="Flight number" defaultValue={defaultFlight.flightNumber} />
-      <Field name="originAirport" label="Origin airport" defaultValue={defaultFlight.originAirport} />
-      <Field name="destinationAirport" label="Destination airport" defaultValue={defaultFlight.destinationAirport} />
-      <Field name="departureTime" label="Departure time" defaultValue={defaultFlight.departureTime} type="datetime-local" />
-      <Field name="arrivalTime" label="Scheduled arrival" defaultValue={defaultFlight.arrivalTime} type="datetime-local" />
+      <FlightFormSection
+        number="01"
+        title="Traveller"
+        description="Who is purchasing the protection and who is covered?"
+      />
+      <Field
+        name="customerName"
+        label="Policyholder name"
+        defaultValue={defaultFlight.customerName}
+        autoComplete="name"
+        required
+      />
+      <Field
+        name="passengerName"
+        label="Covered passenger"
+        defaultValue={defaultFlight.passengerName}
+        helperText="Enter the name shown on the booking."
+        required
+      />
+
+      <FlightFormSection
+        number="02"
+        title="Flight"
+        description="Enter the flight number and departure date; AeroDataBox will fill the itinerary."
+      />
+      <Field
+        name="flightNumber"
+        label="Flight number"
+        value={flight.flightNumber}
+        onChange={(value) => updateFlightField("flightNumber", value.toUpperCase())}
+        helperText="Include the airline code, for example AC101."
+        placeholder="AC101"
+        maxLength={7}
+        pattern="[A-Za-z0-9 ]{3,7}"
+        inputClassName="uppercase"
+        required
+      />
+      <Field
+        name="flightLookupDate"
+        label="Departure date"
+        value={lookupDate}
+        onChange={(value) => {
+          setLookupDate(value);
+          setLookupState((current) => (current.status === "loading" ? current : { status: "idle" }));
+        }}
+        type="date"
+        helperText="Use the departure date at the origin airport."
+        required
+      />
+
+      <div className="md:col-span-2">
+        <button
+          className="btn-ghost w-full sm:w-auto"
+          type="button"
+          disabled={lookupState.status === "loading"}
+          onClick={() => void lookupFlight()}
+        >
+          {lookupState.status === "loading" ? "Finding flight…" : "Find flight details"}
+        </button>
+        {lookupState.status === "empty" ? (
+          <p className="mt-2 text-xs text-signal" role="status">
+            No matching flight was found. Check the number and date, or enter the itinerary manually below.
+          </p>
+        ) : null}
+        {lookupState.status === "error" ? (
+          <p className="mt-2 text-xs text-signal" role="alert">
+            {lookupState.message} You can still enter the itinerary manually.
+          </p>
+        ) : null}
+        {lookupState.status === "selected" ? (
+          <p className="mt-2 border-l-2 border-mint bg-mint/5 px-3 py-2 text-xs text-ink-soft" role="status">
+            {lookupState.result.flightNumber} selected · {lookupState.result.originAirport} →{" "}
+            {lookupState.result.destinationAirport} · {lookupState.result.status}
+          </p>
+        ) : null}
+      </div>
+
+      {lookupState.status === "results" ? (
+        <div className="grid gap-2 md:col-span-2" aria-label="Matching flights">
+          {lookupState.results.map((result) => (
+            <button
+              key={result.id}
+              type="button"
+              className="border border-line bg-card px-3 py-3 text-left transition hover:border-rain hover:bg-rain/5"
+              onClick={() => selectFlight(result)}
+            >
+              <span className="block font-mono text-sm font-semibold">
+                {result.flightNumber} · {result.originAirport} → {result.destinationAirport}
+              </span>
+              <span className="mt-1 block text-xs text-ink-soft">
+                {formatFlightSchedule(result.departureTime, result.arrivalTime)} · {result.status}
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <Field
+        name="airline"
+        label="Airline"
+        value={flight.airline}
+        onChange={(value) => updateFlightField("airline", value)}
+        suggestions={airlineOptions}
+        required
+      />
+      <Field
+        name="originAirport"
+        label="Origin"
+        value={flight.originAirport}
+        onChange={(value) => updateFlightField("originAirport", value.toUpperCase())}
+        suggestions={airportOptions}
+        maxLength={3}
+        pattern="[A-Za-z]{3}"
+        inputClassName="uppercase"
+        required
+      />
+      <Field
+        name="destinationAirport"
+        label="Destination"
+        value={flight.destinationAirport}
+        onChange={(value) => updateFlightField("destinationAirport", value.toUpperCase())}
+        suggestions={airportOptions}
+        maxLength={3}
+        pattern="[A-Za-z]{3}"
+        inputClassName="uppercase"
+        required
+      />
+
+      <FlightFormSection
+        number="03"
+        title="Schedule"
+        description="Use the local times printed on the itinerary."
+      />
+      <Field
+        name="departureTime"
+        label="Scheduled departure"
+        value={flight.departureTime}
+        onChange={(value) => updateFlightField("departureTime", value)}
+        type="datetime-local"
+        helperText="Local time at the origin airport."
+        required
+      />
+      <Field
+        name="arrivalTime"
+        label="Scheduled arrival"
+        value={flight.arrivalTime}
+        onChange={(value) => updateFlightField("arrivalTime", value)}
+        type="datetime-local"
+        helperText="Local time at the destination airport."
+        required
+      />
+
+      <FlightFormSection
+        number="04"
+        title="Protection"
+        description="Choose the benefit and deductible that fit this trip."
+      />
       <CoverageAmountField defaultValue={defaultFlight.desiredPayout} options={flightCoverageAmounts} />
       <DeductibleField defaultValue={defaultFlight.deductible} />
     </>
@@ -563,18 +807,88 @@ function Field({
   name,
   label,
   defaultValue,
-  type = "text"
+  type = "text",
+  helperText,
+  placeholder,
+  autoComplete,
+  maxLength,
+  pattern,
+  inputClassName,
+  value,
+  onChange,
+  suggestions,
+  required = false
 }: {
   name: string;
   label: string;
-  defaultValue: string;
+  defaultValue?: string;
   type?: string;
+  helperText?: string;
+  placeholder?: string;
+  autoComplete?: string;
+  maxLength?: number;
+  pattern?: string;
+  inputClassName?: string;
+  value?: string;
+  onChange?: (value: string) => void;
+  suggestions?: Array<{ value: string; label: string }>;
+  required?: boolean;
 }) {
+  const helperId = helperText ? `${name}-help` : undefined;
+  const listId = suggestions ? `${name}-suggestions` : undefined;
   return (
     <label className="block">
       <span className="font-mono text-[0.66rem] uppercase tracking-wider text-ink-soft">{label}</span>
-      <input className="field-input" name={name} type={type} defaultValue={defaultValue} />
+      <input
+        className={`field-input ${inputClassName ?? ""}`}
+        name={name}
+        type={type}
+        {...(value === undefined
+          ? { defaultValue }
+          : { value, onChange: (event) => onChange?.(event.target.value) })}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        maxLength={maxLength}
+        pattern={pattern}
+        list={listId}
+        required={required}
+        aria-describedby={helperId}
+      />
+      {suggestions ? (
+        <datalist id={listId}>
+          {suggestions.map((suggestion) => (
+            <option key={suggestion.value} value={suggestion.value}>
+              {suggestion.label}
+            </option>
+          ))}
+        </datalist>
+      ) : null}
+      {helperText ? (
+        <span id={helperId} className="mt-1 block text-xs leading-5 text-ink-soft">
+          {helperText}
+        </span>
+      ) : null}
     </label>
+  );
+}
+
+function FlightFormSection({
+  number,
+  title,
+  description
+}: {
+  number: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="mt-2 border-t border-line pt-3 md:col-span-2 first:mt-0">
+      <div className="flex items-baseline gap-3">
+        <span className="font-mono text-[0.62rem] font-semibold text-rain">{number}</span>
+        <h3 className="font-display text-lg font-semibold">{title}</h3>
+      </div>
+      <p className="mt-1 text-xs leading-5 text-ink-soft">{description}</p>
+    </div>
   );
 }
 
@@ -635,9 +949,9 @@ function buildFlightPayload(form: FormData): FlightPayload {
     customerName: readString(form, "customerName"),
     passengerName: readString(form, "passengerName"),
     airline: readString(form, "airline"),
-    flightNumber: readString(form, "flightNumber"),
-    originAirport: readString(form, "originAirport"),
-    destinationAirport: readString(form, "destinationAirport"),
+    flightNumber: readString(form, "flightNumber").replace(/\s+/g, "").toUpperCase(),
+    originAirport: readString(form, "originAirport").toUpperCase(),
+    destinationAirport: readString(form, "destinationAirport").toUpperCase(),
     departureTime: readString(form, "departureTime"),
     arrivalTime: readString(form, "arrivalTime"),
     desiredPayout: { amount: readNumber(form, "desiredPayout"), currency: "USD" },
@@ -651,4 +965,12 @@ function readString(form: FormData, name: string): string {
 
 function readNumber(form: FormData, name: string): number {
   return Number(form.get(name));
+}
+
+function toDateTimeLocal(value: string): string {
+  return value.replace(" ", "T").slice(0, 16);
+}
+
+function formatFlightSchedule(departure: string, arrival: string): string {
+  return `${toDateTimeLocal(departure).replace("T", " ")} → ${toDateTimeLocal(arrival).replace("T", " ")}`;
 }
