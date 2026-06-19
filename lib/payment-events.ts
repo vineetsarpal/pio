@@ -4,12 +4,13 @@ import type {
   PayoutEventResult,
   PayoutFailedEvent,
   PayoutRequestedEvent,
+  PolicyIssuanceResult,
   PremiumCollectedEvent,
   PremiumCollectedResult,
   TriggerDecision
 } from "./types";
 import { paymentEvent, runIdempotent, workflowEvent } from "./policy-store";
-import { markPremiumPaid, settleClaim } from "./workflow";
+import { issuePolicy, markPremiumPaid, settleClaim } from "./workflow";
 
 export async function handlePremiumCollectedEvent(
   event: PremiumCollectedEvent,
@@ -93,6 +94,57 @@ export async function handlePremiumCollectedEvent(
         paymentEvent: collected,
         idempotentReplay: false
       };
+    })
+  );
+}
+
+/**
+ * Advance a premium-paid policy to `policy_issued`. This is the issuance step
+ * the headless off-session purchase path runs after `premium_collected`; it does
+ * not touch the deterministic money core. It is idempotent: a policy already at
+ * `policy_issued` (or beyond) replays its current state rather than re-issuing,
+ * so a duplicate webhook can never double-issue.
+ */
+export async function handlePolicyIssuanceEvent(
+  event: { policyId: string; issuedAt: string },
+  store: PolicyStore
+): Promise<PolicyIssuanceResult> {
+  return runIdempotent(() =>
+    store.withTransaction(async (tx): Promise<PolicyIssuanceResult> => {
+      const policy = await tx.getPolicy(event.policyId);
+      if (!policy) {
+        return {
+          accepted: false,
+          reasonCode: "policy_not_found",
+          message: `Policy ${event.policyId} was not found for issuance.`
+        };
+      }
+
+      if (policy.status !== "premium_paid") {
+        if (policy.issuedAt) {
+          return { accepted: true, policy, idempotentReplay: true };
+        }
+        return {
+          accepted: false,
+          reasonCode: "invalid_policy_state",
+          message: `Policy issuance requires premium_paid state, not ${policy.status}.`
+        };
+      }
+
+      const issued = issuePolicy(policy, event.issuedAt);
+      await tx.savePolicy(issued);
+      await tx.appendWorkflowEvent(
+        workflowEvent({
+          policyId: issued.id,
+          at: event.issuedAt,
+          kind: "policy_issued",
+          actor: "PIO deterministic engine",
+          summary: "Certificate activated after premium payment was verified.",
+          data: { certificateId: issued.certificateId, paymentReference: issued.stripePaymentReference }
+        })
+      );
+
+      return { accepted: true, policy: issued, idempotentReplay: false };
     })
   );
 }

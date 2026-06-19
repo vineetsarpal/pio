@@ -334,6 +334,18 @@ export type PremiumCollectedResult =
       message: string;
     };
 
+export type PolicyIssuanceResult =
+  | {
+      accepted: true;
+      policy: Policy;
+      idempotentReplay: boolean;
+    }
+  | {
+      accepted: false;
+      reasonCode: "policy_not_found" | "invalid_policy_state";
+      message: string;
+    };
+
 export type PayoutRequestedEvent = {
   requestId: string;
   policyId: string;
