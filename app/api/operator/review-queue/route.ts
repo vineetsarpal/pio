@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { demoRun } from "@/lib/demo-data";
+import { getPolicyStore } from "@/lib/policy-store-factory";
 
 export async function GET() {
+  const reviews = await getPolicyStore().getOperatorReviewQueue();
   return NextResponse.json({
-    reviews: demoRun.operatorReviewQueue,
+    reviews,
     source: "ledger_derived"
   });
 }
