@@ -1,4 +1,5 @@
 import type { CoverageProductId, Money, Policy, WeatherEvidence } from "./types";
+import { lookupAeroDataBoxFlights, type FlightLookupResult } from "./aerodatabox";
 
 const USD = (amount: number): Money => ({ amount, currency: "USD" });
 
@@ -130,7 +131,7 @@ export async function quoteCoverageProduct(
     return buildQuote(input.productId, policy, risk, buildRainPacket(policy, risk));
   }
 
-  const flight = adapters.flight ?? new DemoFlightStatusPricingApi();
+  const flight = adapters.flight ?? new AeroDataBoxFlightStatusPricingApi();
   const risk = await flight.getFlightDelayRisk(input);
   const deductible = input.deductible ?? USD(0);
   const payout = payoutAfterDeductible(input.desiredPayout, deductible);
@@ -203,41 +204,98 @@ export class DemoFlightStatusPricingApi implements FlightStatusPricingApi {
   async getFlightDelayRisk(input: FlightDelayQuoteInput): Promise<RiskAssessment> {
     const calledAt = new Date().toISOString();
     const startedAt = Date.now();
-    const routeKey = `${input.originAirport.trim().toUpperCase()}-${input.destinationAirport.trim().toUpperCase()}`;
-    const routeProfile = demoFlightDelayProfiles[routeKey] ?? { probability: 0.28, averageDelayMinutes: 34 };
-    const departureHour = new Date(input.departureTime).getHours();
-    const lateDayPenalty = departureHour >= 16 ? 0.12 : departureHour >= 12 ? 0.06 : 0;
-    const routeCongestion = congestedAirports.has(input.originAirport.trim().toUpperCase()) ? 0.08 : 0;
-    const probability = clamp(routeProfile.probability + lateDayPenalty + routeCongestion, 0.08, 0.82);
-    const score = Math.round(probability * 100);
+    const profile = flightRiskProfile(input);
 
     return {
       productId: "flight_delay",
-      source: `pio://demo-flight-status-api/routes/${routeKey}`,
+      source: `pio://demo-flight-status-api/routes/${profile.routeKey}`,
       sourceLabel: "Demo flight status API",
       apiStatus: "demo",
       apiCall: buildApiCallTelemetry({
         toolName: "Demo flight status API",
         method: "SIMULATED",
-        endpoint: `pio://demo-flight-status-api/routes/${routeKey}`,
+        endpoint: `pio://demo-flight-status-api/routes/${profile.routeKey}`,
         status: "simulated",
         calledAt,
         startedAt,
         purpose: "Retrieve route delay profile for flight-delay premium pricing."
       }),
-      score,
-      pricingAdjustment: 0.025 + probability * 0.075,
-      factors: [
-        `${routeKey} historical delay probability ${(routeProfile.probability * 100).toFixed(0)}%`,
-        `Average observed delay ${routeProfile.averageDelayMinutes} minutes`,
-        departureHour >= 16 ? "Late-day departure increases missed-connection and rotation risk" : "Departure time has moderate schedule risk",
-        routeCongestion > 0 ? `${input.originAirport.toUpperCase()} congestion adjustment applied` : "No major origin congestion adjustment"
-      ],
+      score: profile.score,
+      pricingAdjustment: 0.025 + profile.probability * 0.075,
+      factors: profile.factors,
       observedMetric: {
         label: "Estimated delay probability",
-        value: `${score}%`
+        value: `${profile.score}%`
       }
     };
+  }
+}
+
+type FlightLookup = (input: { flightNumber: string; date: string }) => Promise<FlightLookupResult[]>;
+
+export class AeroDataBoxFlightStatusPricingApi implements FlightStatusPricingApi {
+  constructor(private readonly lookup: FlightLookup = lookupAeroDataBoxFlights) {}
+
+  async getFlightDelayRisk(input: FlightDelayQuoteInput): Promise<RiskAssessment> {
+    const calledAt = new Date().toISOString();
+    const startedAt = Date.now();
+    const date = input.departureTime.slice(0, 10);
+    const flightNumber = input.flightNumber.replace(/\s+/g, "").toUpperCase();
+    const endpoint = `https://aerodatabox.p.rapidapi.com/flights/number/${encodeURIComponent(flightNumber)}/${date}?dateLocalRole=Departure`;
+
+    try {
+      const flights = await this.lookup({ flightNumber, date });
+      const flight = flights.find(
+        (candidate) =>
+          candidate.originAirport === input.originAirport.toUpperCase() &&
+          candidate.destinationAirport === input.destinationAirport.toUpperCase()
+      );
+      if (!flight) throw new Error("AeroDataBox did not return the selected itinerary.");
+
+      const profile = flightRiskProfile(input);
+      const observedDelay = Math.max(flight.departureDelayMinutes, flight.arrivalDelayMinutes);
+      const liveDelayAdjustment = observedDelay >= 90 ? 0.2 : observedDelay >= 30 ? 0.08 : 0;
+      const probability = clamp(profile.probability + liveDelayAdjustment, 0.08, 0.95);
+      const score = Math.round(probability * 100);
+
+      return {
+        productId: "flight_delay",
+        source: endpoint,
+        sourceLabel: "AeroDataBox flight status API",
+        apiStatus: "live",
+        apiCall: buildApiCallTelemetry({
+          toolName: "AeroDataBox flight status API",
+          method: "GET",
+          endpoint,
+          status: "success",
+          calledAt,
+          startedAt,
+          purpose: "Verify the selected itinerary and current flight status for premium pricing."
+        }),
+        score,
+        pricingAdjustment: 0.025 + probability * 0.075,
+        factors: [
+          `${flight.flightNumber} verified by AeroDataBox as ${flight.status.toLowerCase()}`,
+          observedDelay > 0 ? `Current observed delay ${observedDelay} minutes` : "No current delay reported",
+          ...profile.factors
+        ],
+        observedMetric: {
+          label: "Estimated delay probability",
+          value: `${score}%`
+        }
+      };
+    } catch {
+      const fallback = await new DemoFlightStatusPricingApi().getFlightDelayRisk(input);
+      return {
+        ...fallback,
+        apiStatus: "demo_fallback",
+        apiCall: {
+          ...fallback.apiCall,
+          status: "fallback",
+          purpose: "Use deterministic route risk when live AeroDataBox verification is unavailable."
+        }
+      };
+    }
   }
 }
 
@@ -504,6 +562,36 @@ function eventHours(start: string, end: string): number {
 
 function flightHours(start: string, end: string): number {
   return Math.max(1, (new Date(end).getTime() - new Date(start).getTime()) / 3_600_000);
+}
+
+function flightRiskProfile(input: FlightDelayQuoteInput): {
+  routeKey: string;
+  probability: number;
+  score: number;
+  factors: string[];
+} {
+  const routeKey = `${input.originAirport.trim().toUpperCase()}-${input.destinationAirport.trim().toUpperCase()}`;
+  const routeProfile = demoFlightDelayProfiles[routeKey] ?? { probability: 0.28, averageDelayMinutes: 34 };
+  const departureHour = new Date(input.departureTime).getHours();
+  const lateDayPenalty = departureHour >= 16 ? 0.12 : departureHour >= 12 ? 0.06 : 0;
+  const routeCongestion = congestedAirports.has(input.originAirport.trim().toUpperCase()) ? 0.08 : 0;
+  const probability = clamp(routeProfile.probability + lateDayPenalty + routeCongestion, 0.08, 0.82);
+
+  return {
+    routeKey,
+    probability,
+    score: Math.round(probability * 100),
+    factors: [
+      `${routeKey} historical delay probability ${(routeProfile.probability * 100).toFixed(0)}%`,
+      `Average observed delay ${routeProfile.averageDelayMinutes} minutes`,
+      departureHour >= 16
+        ? "Late-day departure increases missed-connection and rotation risk"
+        : "Departure time has moderate schedule risk",
+      routeCongestion > 0
+        ? `${input.originAirport.toUpperCase()} congestion adjustment applied`
+        : "No major origin congestion adjustment"
+    ]
+  };
 }
 
 function stablePolicyId(parts: string[]): string {

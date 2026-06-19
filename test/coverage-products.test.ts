@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { RiskAssessment, WeatherPricingApi } from "../lib/coverage-products";
-import { DemoFlightStatusPricingApi, quoteCoverageProduct } from "../lib/coverage-products";
+import {
+  AeroDataBoxFlightStatusPricingApi,
+  DemoFlightStatusPricingApi,
+  quoteCoverageProduct
+} from "../lib/coverage-products";
 
 const rainRequest = {
   productId: "rain_event" as const,
@@ -62,6 +66,31 @@ describe("quoteCoverageProduct", () => {
       status: "simulated"
     });
     expect(quote.packet.triggerSummary).toContain("arrival delay exceeds 90 minutes");
+  });
+
+  it("uses a live AeroDataBox itinerary when one matches the selected route", async () => {
+    const adapter = new AeroDataBoxFlightStatusPricingApi(async () => [
+      {
+        id: "ACA101",
+        flightNumber: "AC101",
+        airline: "Air Canada",
+        originAirport: "YYZ",
+        originName: "Toronto Pearson",
+        destinationAirport: "YVR",
+        destinationName: "Vancouver International",
+        departureTime: flightRequest.departureTime,
+        arrivalTime: flightRequest.arrivalTime,
+        status: "Scheduled",
+        departureDelayMinutes: 0,
+        arrivalDelayMinutes: 0
+      }
+    ]);
+
+    const quote = await quoteCoverageProduct(flightRequest, { flight: adapter });
+
+    expect(quote.risk.apiStatus).toBe("live");
+    expect(quote.risk.sourceLabel).toBe("AeroDataBox flight status API");
+    expect(quote.risk.factors[0]).toContain("verified by AeroDataBox");
   });
 
   it("prices the net payout after applying a deductible", async () => {
