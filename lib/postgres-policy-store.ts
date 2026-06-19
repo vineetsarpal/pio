@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import { auditSnapshots, paymentEvents, policies, workflowEvents } from "./db/schema";
 import { buildOperatorReviewQueue } from "./operator-review";
@@ -254,5 +254,13 @@ export class PostgresPolicyStore implements PolicyStore {
       auditSnapshots: []
     };
     return buildOperatorReviewQueue(ledger);
+  }
+
+  async listPolicies(): Promise<Policy[]> {
+    const rows = await this.db
+      .select({ data: policies.data })
+      .from(policies)
+      .orderBy(desc(policies.updatedAt));
+    return rows.map((row) => row.data);
   }
 }

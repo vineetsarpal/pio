@@ -221,4 +221,14 @@ describe.each(harnesses)("$name conformance", ({ create }) => {
     }
     expect((await store.getPolicy(policy.id))?.status).toBe("premium_paid");
   });
+
+  it("lists all saved policies", async () => {
+    const first = { ...quotePolicy(demoCoverageRequest), id: "policy-a" };
+    const second = { ...quotePolicy(demoCoverageRequest), id: "policy-b" };
+    await store.savePolicy(first);
+    await store.savePolicy(second);
+
+    const ids = (await store.listPolicies()).map((p) => p.id).sort();
+    expect(ids).toEqual(["policy-a", "policy-b"]);
+  });
 });
