@@ -204,85 +204,96 @@ export default function BuyPage() {
   }
 
   return (
-    <main className="min-h-screen bg-fog/90 px-4 py-8 text-ink sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-5 rounded-lg border border-amber/40 bg-amber/10 p-4 text-sm leading-6 text-slate-700">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <p>
-              <strong>Hackathon demo only.</strong> PIO uses Stripe test mode and does not issue real
-              insurance, coverage, or legally binding payouts.
-            </p>
-            <div className="flex shrink-0 flex-wrap gap-3">
-              <a className="font-semibold text-rain" href="/">
-                Home
-              </a>
-              <a className="font-semibold text-rain" href="/ops">
-                Operator dashboard
-              </a>
-            </div>
-          </div>
+    <main className="px-4 py-10 text-ink sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-8 flex items-center gap-3 border-y border-signal/40 bg-signal/5 px-3 py-2 font-mono text-[0.66rem] uppercase tracking-wider text-signal">
+          <span className="border border-signal px-1.5 py-0.5">Notice</span>
+          <span className="text-ink-soft">
+            Hackathon demo only — Stripe test mode. No real insurance, coverage, or legally binding
+            payouts.
+          </span>
         </div>
 
-        <section className="rounded-lg border border-white/80 bg-white/90 p-6 shadow-panel">
-          <p className="text-sm font-semibold uppercase text-rain">Coverage catalog</p>
-          <h1 className="mt-2 text-4xl font-semibold">Choose parametric protection</h1>
-          <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600">
-            Hermes guides the customer through a product-specific intake, calls the relevant risk API,
-            prices the premium, and prepares a policy packet for Stripe-backed issuance.
+        {/* Section header */}
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-3 border-b-2 border-ink pb-3">
+          <div>
+            <p className="kicker text-rain">Coverage catalog</p>
+            <h1 className="mt-1 font-display text-5xl font-semibold leading-none tracking-tight">
+              Choose parametric protection
+            </h1>
+          </div>
+          <p className="max-w-md text-pretty text-sm leading-6 text-ink-soft">
+            The agent guides a product-specific intake, calls the relevant risk API, prices the
+            premium, and prepares a policy packet for Stripe-backed issuance.
           </p>
+        </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            {products.map((product) => {
-              const Icon = product.icon;
-              const selected = product.id === activeProduct;
-              return (
-                <button
-                  key={product.id}
-                  className={`rounded-lg border p-5 text-left transition ${
-                    selected
-                      ? "border-rain bg-rain/10 shadow-panel"
-                      : "border-slate-200 bg-white hover:border-mint/60"
-                  }`}
-                  type="button"
-                  onClick={() => {
-                    setActiveProduct(product.id);
-                    setState({ status: "idle" });
-                  }}
-                >
-                  <div className="flex items-start gap-4">
-                    <span className={`rounded-lg p-3 ${selected ? "bg-rain text-white" : "bg-slate-100 text-rain"}`}>
-                      <Icon size={24} />
+        {/* Product selector */}
+        <div className="grid gap-px border border-line bg-line md:grid-cols-2">
+          {products.map((product) => {
+            const Icon = product.icon;
+            const selected = product.id === activeProduct;
+            return (
+              <button
+                key={product.id}
+                className={`p-5 text-left transition-colors ${
+                  selected ? "bg-rain text-card" : "bg-card hover:bg-paper/60"
+                }`}
+                type="button"
+                onClick={() => {
+                  setActiveProduct(product.id);
+                  setState({ status: "idle" });
+                }}
+              >
+                <div className="flex items-start gap-4">
+                  <span
+                    className={`flex h-12 w-12 shrink-0 items-center justify-center border ${
+                      selected ? "border-card/60 bg-card/15 text-card" : "border-ink bg-rain/10 text-rain"
+                    }`}
+                  >
+                    <Icon size={22} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-display text-xl font-semibold">{product.name}</span>
+                    <span className={`mt-1 block text-sm leading-6 ${selected ? "text-card/80" : "text-ink-soft"}`}>
+                      {product.description}
                     </span>
-                    <span>
-                      <span className="block text-lg font-semibold">{product.name}</span>
-                      <span className="mt-1 block text-sm leading-6 text-slate-600">{product.description}</span>
-                      <span className="mt-3 flex flex-wrap gap-2 text-xs font-semibold uppercase text-slate-500">
-                        <span className="rounded bg-slate-100 px-2 py-1">{product.trigger}</span>
-                        <span className="rounded bg-slate-100 px-2 py-1">{product.api}</span>
+                    <span className="mt-3 flex flex-wrap gap-2 font-mono text-[0.62rem] font-semibold uppercase tracking-wider">
+                      <span className={`border px-2 py-0.5 ${selected ? "border-card/50" : "border-line"}`}>
+                        {product.trigger}
+                      </span>
+                      <span className={`border px-2 py-0.5 ${selected ? "border-card/50" : "border-line"}`}>
+                        {product.api}
                       </span>
                     </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
 
-        <div className="mt-5 grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-          <section className="rounded-lg border border-white/80 bg-white/90 p-6 shadow-panel">
-            <div className="flex items-center gap-3">
-              <span className="rounded-lg bg-mint/15 p-2 text-mint">
-                <Sparkles size={20} />
+        <div className="mt-6 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+          <section className="panel reg p-6">
+            <div className="flex items-center gap-3 border-b border-line pb-4">
+              <span className="flex h-10 w-10 items-center justify-center border border-mint bg-mint/10 text-mint">
+                <Sparkles size={18} />
               </span>
               <div>
-                <p className="text-sm font-semibold uppercase text-mint">Hermes intake</p>
-                <h2 className="text-2xl font-semibold">{selectedProduct.name}</h2>
+                <p className="kicker text-mint">Agent intake</p>
+                <h2 className="font-display text-2xl font-semibold">{selectedProduct.name}</h2>
               </div>
             </div>
 
             <div className="mt-5 space-y-3">
-              <AgentBubble>Selected {selectedProduct.name}. I will capture only the fields needed to quote this parametric cover.</AgentBubble>
-              <AgentBubble>I will call the {selectedProduct.api.toLowerCase()} before pricing so premium changes with risk.</AgentBubble>
+              <AgentBubble>
+                Selected {selectedProduct.name}. I will capture only the fields needed to quote this
+                parametric cover.
+              </AgentBubble>
+              <AgentBubble>
+                I will call the {selectedProduct.api.toLowerCase()} before pricing so premium changes
+                with risk.
+              </AgentBubble>
               {state.status === "quoted" || state.status === "checkout" ? (
                 <>
                   {(state.status === "quoted" ? state.quote : state.quote).agentNarrative.map((line) => (
@@ -290,46 +301,49 @@ export default function BuyPage() {
                   ))}
                 </>
               ) : null}
-              {state.status === "loading" ? <AgentBubble>Calling the risk adapter and pricing engine...</AgentBubble> : null}
+              {state.status === "loading" ? (
+                <AgentBubble pending>Calling the risk adapter and pricing engine…</AgentBubble>
+              ) : null}
             </div>
           </section>
 
-          <section className="rounded-lg border border-white/80 bg-white/90 p-6 shadow-panel">
-            <div className="flex items-center gap-3">
-              <span className="rounded-lg bg-rain/10 p-2 text-rain">
-                <CalendarClock size={20} />
+          <section className="panel p-6">
+            <div className="flex items-center gap-3 border-b border-line pb-4">
+              <span className="flex h-10 w-10 items-center justify-center border border-rain bg-rain/10 text-rain">
+                <CalendarClock size={18} />
               </span>
               <div>
-                <p className="text-sm font-semibold uppercase text-rain">Questionnaire</p>
-                <h2 className="text-2xl font-semibold">Coverage details</h2>
+                <p className="kicker text-rain">Questionnaire</p>
+                <h2 className="font-display text-2xl font-semibold">Coverage details</h2>
               </div>
             </div>
 
             <form onSubmit={handleQuote} className="mt-6 grid gap-4 md:grid-cols-2">
               {activeProduct === "rain_event" ? <RainFields /> : <FlightFields />}
               <div className="md:col-span-2">
-                <button
-                  className="inline-flex items-center gap-2 rounded-lg bg-rain px-5 py-3 font-semibold text-white shadow-panel disabled:opacity-60"
-                  disabled={state.status === "loading"}
-                  type="submit"
-                >
-                  <ShieldCheck size={18} />
-                  {state.status === "loading" ? "Pricing coverage..." : "Get dynamic quote"}
+                <button className="btn w-full sm:w-auto" disabled={state.status === "loading"} type="submit">
+                  <ShieldCheck size={16} />
+                  {state.status === "loading" ? "Pricing coverage…" : "Get dynamic quote"}
                 </button>
               </div>
             </form>
           </section>
         </div>
 
-        <section className="mt-5 rounded-lg border border-white/80 bg-white/90 p-6 shadow-panel">
-          <h2 className="text-2xl font-semibold">Quote and policy packet</h2>
+        <section className="panel mt-6 p-6">
+          <div className="flex items-end justify-between border-b border-line pb-3">
+            <h2 className="font-display text-2xl font-semibold">Quote &amp; policy packet</h2>
+            <span className="kicker">{stateLabel(state.status)}</span>
+          </div>
           {state.status === "idle" ? (
-            <p className="mt-3 text-slate-600">Choose a coverage card and submit the questionnaire to price a policy.</p>
+            <p className="mt-4 text-ink-soft">
+              Choose a coverage card and submit the questionnaire to price a policy.
+            </p>
           ) : null}
           {state.status === "error" ? (
-            <div className="mt-4 rounded-lg border border-amber/30 bg-amber/10 p-4 text-sm leading-6 text-slate-700">
-              <p className="font-semibold">Quote unavailable</p>
-              <p>{state.message}</p>
+            <div className="mt-5 border border-signal/40 bg-signal/5 p-4 text-sm leading-6">
+              <p className="font-mono text-[0.66rem] uppercase tracking-wider text-signal">Quote unavailable</p>
+              <p className="mt-1 text-ink-soft">{state.message}</p>
             </div>
           ) : null}
           {state.status === "quoted" || state.status === "checkout" ? (
@@ -384,51 +398,60 @@ function QuoteResult({
   onCreateCheckout: () => void;
 }) {
   return (
-    <div className="mt-5 grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-5">
-        <p className="text-sm font-semibold uppercase text-slate-500">Dynamic price</p>
-        <div className="mt-3 grid grid-cols-3 gap-3">
+    <div className="mt-6 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+      <div className="quiet p-5">
+        <p className="kicker">Dynamic price</p>
+        <div className="mt-4 grid grid-cols-3 gap-px border border-line bg-line">
           <Metric label="Premium" value={`$${quote.policy.premium.amount}`} />
           <Metric label="Payout" value={`$${quote.policy.payout.amount}`} />
-          <Metric label="Risk score" value={`${quote.risk.score}/100`} />
+          <Metric label="Risk" value={`${quote.risk.score}/100`} />
         </div>
-        <div className="mt-4 rounded-lg border border-mint/20 bg-white p-4">
-          <p className="font-semibold text-mint">{quote.risk.sourceLabel}</p>
-          <p className="mt-1 break-all text-sm text-slate-600">{quote.risk.source}</p>
-          <p className="mt-3 text-sm text-slate-700">
-            {quote.risk.observedMetric.label}: <strong>{quote.risk.observedMetric.value}</strong>
+        <div className="mt-4 border border-mint/40 bg-card p-4">
+          <p className="font-mono text-[0.66rem] uppercase tracking-wider text-mint">{quote.risk.sourceLabel}</p>
+          <p className="mt-1 break-all font-mono text-xs text-ink-soft">{quote.risk.source}</p>
+          <p className="mt-3 text-sm text-ink">
+            {quote.risk.observedMetric.label}:{" "}
+            <strong className="font-mono">{quote.risk.observedMetric.value}</strong>
           </p>
-          <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+          <ul className="mt-3 space-y-1.5 text-sm leading-6 text-ink-soft">
             {quote.risk.factors.map((factor) => (
-              <li key={factor}>- {factor}</li>
+              <li key={factor} className="flex gap-2">
+                <span className="text-mint">›</span>
+                {factor}
+              </li>
             ))}
           </ul>
         </div>
         <ApiTelemetryPanel risk={quote.risk} />
         {checkoutState.status === "quoted" ? (
           <button
-            className="mt-5 inline-flex items-center gap-2 rounded-lg bg-mint px-5 py-3 font-semibold text-white shadow-panel"
+            className="btn mt-5 w-full border-mint bg-mint hover:border-rain hover:bg-rain"
             type="button"
             onClick={onCreateCheckout}
           >
-            <ShieldCheck size={18} />
+            <ShieldCheck size={16} />
             Create Stripe checkout
           </button>
         ) : (
-          <div className="mt-5 rounded-lg border border-mint/30 bg-mint/10 p-4">
-            <p className="font-semibold text-mint">Stripe Checkout Session created</p>
-            <p className="mt-2 break-all text-sm text-slate-700">Session: {checkoutState.checkoutId}</p>
-            <a className="mt-4 inline-block rounded-lg bg-mint px-5 py-3 font-semibold text-white" href={checkoutState.checkoutUrl}>
-              Open Stripe Checkout
+          <div className="mt-5 border border-mint/40 bg-mint/10 p-4">
+            <p className="font-mono text-[0.66rem] uppercase tracking-wider text-mint">
+              Stripe checkout session created
+            </p>
+            <p className="mt-2 break-all font-mono text-xs text-ink-soft">{checkoutState.checkoutId}</p>
+            <a className="btn mt-4 w-full border-mint bg-mint hover:border-rain hover:bg-rain" href={checkoutState.checkoutUrl}>
+              Open Stripe checkout
             </a>
           </div>
         )}
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white p-5">
-        <p className="text-sm font-semibold uppercase text-slate-500">Policy packet</p>
-        <h3 className="mt-2 text-xl font-semibold">{quote.packet.title}</h3>
-        <dl className="mt-4 grid gap-3 text-sm">
+      <div className="relative border border-ink bg-card p-5 shadow-riso">
+        <div className="flex items-center justify-between border-b border-line pb-3">
+          <p className="kicker">Policy packet</p>
+          <span className="tag text-rain">{quote.packet.certificateId}</span>
+        </div>
+        <h3 className="mt-4 font-display text-2xl font-semibold">{quote.packet.title}</h3>
+        <dl className="mt-4 divide-y divide-line border-y border-line">
           <PacketRow label="Certificate" value={quote.packet.certificateId} />
           <PacketRow label="Insured" value={quote.packet.insured} />
           <PacketRow label="Coverage" value={quote.packet.coverageSummary} />
@@ -443,40 +466,46 @@ function QuoteResult({
 
 function ApiTelemetryPanel({ risk }: { risk: RiskAssessment }) {
   return (
-    <div className="mt-4 rounded-lg border border-rain/20 bg-rain/5 p-4">
-      <div className="flex items-center gap-2">
-        <span className="rounded bg-white p-2 text-rain">
-          <Activity size={18} />
+    <div className="mt-4 border border-rain/30 bg-rain/5 p-4">
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-9 w-9 items-center justify-center border border-rain bg-card text-rain">
+          <Activity size={16} />
         </span>
         <div>
-          <p className="text-xs font-semibold uppercase text-slate-500">API call telemetry</p>
-          <p className="font-semibold text-rain">{risk.apiCall.toolName}</p>
+          <p className="font-mono text-[0.62rem] uppercase tracking-wider text-ink-soft">API call telemetry</p>
+          <p className="font-mono text-sm font-semibold text-rain">{risk.apiCall.toolName}</p>
         </div>
       </div>
-      <div className="mt-3 grid gap-3 text-sm md:grid-cols-3">
+      <div className="mt-3 grid gap-px border border-line bg-line md:grid-cols-3">
         <TelemetryMetric label="Method" value={risk.apiCall.method} />
         <TelemetryMetric label="Status" value={formatApiStatus(risk.apiCall.status)} />
         <TelemetryMetric label="Latency" value={`${risk.apiCall.latencyMs} ms`} />
       </div>
-      <p className="mt-3 text-sm leading-6 text-slate-700">{risk.apiCall.purpose}</p>
-      <p className="mt-2 break-all text-xs text-slate-500">{risk.apiCall.endpoint}</p>
-      <p className="mt-1 text-xs text-slate-500">Called at {new Date(risk.apiCall.calledAt).toLocaleString()}</p>
+      <p className="mt-3 text-sm leading-6 text-ink-soft">{risk.apiCall.purpose}</p>
+      <p className="mt-2 break-all font-mono text-xs text-ink-soft/80">{risk.apiCall.endpoint}</p>
+      <p className="mt-1 font-mono text-[0.66rem] text-ink-soft/70">
+        Called at {new Date(risk.apiCall.calledAt).toLocaleString()}
+      </p>
     </div>
   );
 }
 
 function TelemetryMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded bg-white p-3">
-      <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
-      <p className="mt-1 font-semibold text-slate-800">{value}</p>
+    <div className="bg-card p-3">
+      <p className="font-mono text-[0.6rem] uppercase tracking-wider text-ink-soft">{label}</p>
+      <p className="mt-1 font-mono text-sm font-semibold text-ink">{value}</p>
     </div>
   );
 }
 
-function AgentBubble({ children }: { children: ReactNode }) {
+function AgentBubble({ children, pending = false }: { children: ReactNode; pending?: boolean }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700">
+    <div
+      className={`border-l-2 px-3 py-2 text-sm leading-6 ${
+        pending ? "animate-pulse border-rain bg-rain/5 text-rain" : "border-mint bg-paper/50 text-ink-soft"
+      }`}
+    >
       {children}
     </div>
   );
@@ -484,9 +513,9 @@ function AgentBubble({ children }: { children: ReactNode }) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-white p-3">
-      <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
-      <p className="mt-1 text-xl font-semibold">{value}</p>
+    <div className="bg-card p-3 text-center">
+      <p className="font-mono text-[0.6rem] uppercase tracking-wider text-ink-soft">{label}</p>
+      <p className="mt-1 font-display text-2xl font-semibold">{value}</p>
     </div>
   );
 }
@@ -497,11 +526,19 @@ function formatApiStatus(status: RiskAssessment["apiCall"]["status"]): string {
   return "Simulated";
 }
 
+function stateLabel(status: QuoteState["status"]): string {
+  if (status === "loading") return "Pricing…";
+  if (status === "quoted") return "Quoted";
+  if (status === "checkout") return "Checkout ready";
+  if (status === "error") return "Error";
+  return "Awaiting input";
+}
+
 function PacketRow({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <dt className="font-medium text-slate-500">{label}</dt>
-      <dd className="mt-1 text-slate-800">{value}</dd>
+    <div className="grid grid-cols-[8rem_1fr] gap-3 py-2.5">
+      <dt className="font-mono text-[0.66rem] uppercase tracking-wider text-ink-soft">{label}</dt>
+      <dd className="text-sm text-ink">{value}</dd>
     </div>
   );
 }
@@ -518,14 +555,9 @@ function Field({
   type?: string;
 }) {
   return (
-    <label className="block text-sm font-medium text-slate-700">
-      {label}
-      <input
-        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-ink outline-none ring-rain/20 focus:ring-4"
-        name={name}
-        type={type}
-        defaultValue={defaultValue}
-      />
+    <label className="block">
+      <span className="font-mono text-[0.66rem] uppercase tracking-wider text-ink-soft">{label}</span>
+      <input className="field-input" name={name} type={type} defaultValue={defaultValue} />
     </label>
   );
 }

@@ -1,10 +1,39 @@
 import type { Metadata } from "next";
+import { Archivo, Fraunces, Spline_Sans_Mono } from "next/font/google";
+import Link from "next/link";
+import { Droplets } from "lucide-react";
 import "./globals.css";
 
+const display = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-display",
+  style: ["normal", "italic"],
+  display: "swap"
+});
+
+const sans = Archivo({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap"
+});
+
+const mono = Spline_Sans_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap"
+});
+
 export const metadata: Metadata = {
-  title: "PIO - Parametric Insurance Operator",
-  description: "Hermes-powered parametric insurance demo for rain cover."
+  title: "pio — Parametric Insurance Operations",
+  description:
+    "A field report on automated, evidence-grounded parametric coverage. Deterministic underwriting and settlement, operated by an agent."
 };
+
+const nav = [
+  { href: "/", label: "Front" },
+  { href: "/buy", label: "Coverage" },
+  { href: "/ops", label: "Operations" }
+];
 
 export default function RootLayout({
   children
@@ -13,7 +42,52 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body>{children}</body>
+      <body
+        className={`${display.variable} ${sans.variable} ${mono.variable} min-h-screen font-sans text-ink`}
+      >
+        <header className="border-b-2 border-ink bg-card/80 backdrop-blur-sm">
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+            <Link href="/" className="group flex items-baseline gap-2.5">
+              <span className="flex h-7 w-7 items-center justify-center border border-ink bg-rain text-card transition-transform group-hover:-rotate-6">
+                <Droplets size={15} />
+              </span>
+              <span className="font-display text-2xl font-semibold leading-none tracking-tight">
+                pio
+              </span>
+              <span className="hidden font-mono text-[0.62rem] uppercase tracking-kicker text-ink-soft sm:inline">
+                Parametric Insurance Operations
+              </span>
+            </Link>
+            <nav className="flex items-center gap-1 font-mono text-[0.7rem] uppercase tracking-wider">
+              {nav.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="border border-transparent px-2.5 py-1 text-ink-soft transition-colors hover:border-line hover:bg-paper/70 hover:text-ink"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          </div>
+          <div className="border-t border-line bg-rain text-card">
+            <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-1 font-mono text-[0.6rem] uppercase tracking-kicker sm:px-6 lg:px-8">
+              <span>Vol. I — No. 1</span>
+              <span className="hidden sm:inline">Evidence-Grounded · Deterministic Settlement</span>
+              <span>Stripe Test Mode</span>
+            </div>
+          </div>
+        </header>
+
+        {children}
+
+        <footer className="mt-2 border-t-2 border-ink bg-card/70">
+          <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-6 font-mono text-[0.66rem] uppercase tracking-wider text-ink-soft sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+            <span>pio — Parametric Insurance Operations · Hackathon Prototype</span>
+            <span>Money &amp; claims governed by typed functions, not free-form output.</span>
+          </div>
+        </footer>
+      </body>
     </html>
   );
 }

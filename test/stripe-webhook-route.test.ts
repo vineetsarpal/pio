@@ -1,8 +1,26 @@
 import { createHmac } from "node:crypto";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// The route resolves its durable store through the factory; mock it with a
+// seeded in-memory store so the test exercises the real handler without Neon.
+const hoisted = vi.hoisted(() => ({ storeRef: {} as { current?: unknown } }));
+vi.mock("../lib/policy-store-factory", () => ({
+  getPolicyStore: () => hoisted.storeRef.current
+}));
+
 import { POST } from "../app/api/stripe/webhook/route";
+import { demoCoverageRequest } from "../lib/demo-fixtures";
+import { InMemoryPolicyStore } from "../lib/policy-store";
+import { quotePolicy } from "../lib/workflow";
 
 const originalWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+beforeEach(async () => {
+  // Seed the policy create-checkout would have persisted (id pio-pol-2026-0001).
+  const store = new InMemoryPolicyStore();
+  await store.savePolicy(quotePolicy(demoCoverageRequest));
+  hoisted.storeRef.current = store;
+});
 
 function checkoutCompletedPayload(overrides: Record<string, unknown> = {}) {
   return JSON.stringify({
