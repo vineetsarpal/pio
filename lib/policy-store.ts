@@ -1,4 +1,45 @@
-import type { AuditSnapshot, PaymentEvent, Policy, PolicyLedgerSnapshot, WorkflowEvent } from "./types";
+import type {
+  AuditSnapshot,
+  OperatorReviewItem,
+  PaymentEvent,
+  Policy,
+  PolicyLedgerSnapshot,
+  WorkflowEvent
+} from "./types";
+import { buildOperatorReviewQueue } from "./operator-review";
+
+/**
+ * Thrown when a write violates one of the ledger's uniqueness invariants
+ * (duplicate payment event, second payout request/issue, duplicate audit
+ * snapshot). The Postgres store raises this on a `23505` unique-constraint
+ * violation; the in-memory store raises it from its equivalent checks. The
+ * idempotent-retry wrapper keys off this type to re-run an operation whose
+ * transaction lost a race, after which the read-check fast path returns a
+ * replay instead of re-inserting.
+ */
+export class DuplicateEventError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DuplicateEventError";
+  }
+}
+
+/**
+ * Re-run a money operation once if its transaction lost a uniqueness race.
+ * On the second pass the handler's read-check fast path finds the now-committed
+ * event and returns an idempotent replay instead of inserting again. A no-op
+ * for the single-threaded in-memory store, which never races.
+ */
+export async function runIdempotent<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (error instanceof DuplicateEventError) {
+      return fn();
+    }
+    throw error;
+  }
+}
 
 export interface PolicyStore {
   savePolicy(policy: Policy): Promise<void>;
@@ -9,7 +50,23 @@ export interface PolicyStore {
   getAuditSnapshot(snapshotId: string): Promise<AuditSnapshot | undefined>;
   findPaymentEvent(policyId: string, kind: PaymentEvent["kind"], reference: string): Promise<PaymentEvent | undefined>;
   hasPayout(policyId: string): Promise<boolean>;
+  /**
+   * Run `fn` inside a single atomic unit of work. Every write performed via the
+   * `tx` store commits together or rolls back together. Money-mutating
+   * operations MUST go through this so a crash or duplicate webhook cannot leave
+   * a torn write (e.g. payment recorded but policy status not advanced).
+   */
+  withTransaction<T>(fn: (tx: PolicyStore) => Promise<T>): Promise<T>;
+  /**
+   * Full ledger load. Batch/test/admin use only — never call on a per-request
+   * route; it scans every table. Production routes use `snapshotForPolicy` or
+   * `getOperatorReviewQueue`.
+   */
   snapshot(): Promise<PolicyLedgerSnapshot>;
+  /** Ledger scoped to a single policy (indexed by policy_id) — for audit and per-policy consistency. */
+  snapshotForPolicy(policyId: string): Promise<PolicyLedgerSnapshot>;
+  /** Operator review queue built from targeted queries rather than a full ledger load. */
+  getOperatorReviewQueue(): Promise<OperatorReviewItem[]>;
 }
 
 export class InMemoryPolicyStore implements PolicyStore {
@@ -34,15 +91,15 @@ export class InMemoryPolicyStore implements PolicyStore {
   async appendPaymentEvent(event: PaymentEvent): Promise<void> {
     const existing = await this.findPaymentEvent(event.policyId, event.kind, event.reference);
     if (existing) {
-      throw new Error("Policy store blocked duplicate payment event.");
+      throw new DuplicateEventError("Policy store blocked duplicate payment event.");
     }
 
     if (event.kind === "payout_requested" && (await this.hasPayoutRequest(event.policyId))) {
-      throw new Error("Policy store blocked duplicate payout request event.");
+      throw new DuplicateEventError("Policy store blocked duplicate payout request event.");
     }
 
     if (event.kind === "payout_issued" && (await this.hasPayout(event.policyId))) {
-      throw new Error("Policy store blocked duplicate payout event.");
+      throw new DuplicateEventError("Policy store blocked duplicate payout event.");
     }
 
     this.paymentEvents.push(structuredClone(event));
@@ -50,7 +107,7 @@ export class InMemoryPolicyStore implements PolicyStore {
 
   async appendAuditSnapshot(snapshot: AuditSnapshot): Promise<void> {
     if (await this.getAuditSnapshot(snapshot.id)) {
-      throw new Error("Policy store blocked duplicate audit snapshot.");
+      throw new DuplicateEventError("Policy store blocked duplicate audit snapshot.");
     }
 
     this.auditSnapshots.push(structuredClone(snapshot));
@@ -85,6 +142,31 @@ export class InMemoryPolicyStore implements PolicyStore {
     );
   }
 
+  async withTransaction<T>(fn: (tx: PolicyStore) => Promise<T>): Promise<T> {
+    // Single-threaded staging copy: capture current contents, run the unit of
+    // work against `this`, and restore on failure so a thrown error leaves no
+    // partial writes — mirroring the BEGIN/ROLLBACK semantics of the SQL store.
+    const policiesBackup = new Map(this.policies);
+    const workflowBackup = [...this.workflowEvents];
+    const paymentBackup = [...this.paymentEvents];
+    const auditBackup = [...this.auditSnapshots];
+    try {
+      return await fn(this);
+    } catch (error) {
+      this.policies.clear();
+      for (const [id, policy] of policiesBackup) {
+        this.policies.set(id, policy);
+      }
+      this.workflowEvents.length = 0;
+      this.workflowEvents.push(...workflowBackup);
+      this.paymentEvents.length = 0;
+      this.paymentEvents.push(...paymentBackup);
+      this.auditSnapshots.length = 0;
+      this.auditSnapshots.push(...auditBackup);
+      throw error;
+    }
+  }
+
   async snapshot(): Promise<PolicyLedgerSnapshot> {
     return {
       policies: Array.from(this.policies.values()).map((policy) => structuredClone(policy)),
@@ -92,6 +174,26 @@ export class InMemoryPolicyStore implements PolicyStore {
       paymentEvents: this.paymentEvents.map((event) => structuredClone(event)),
       auditSnapshots: this.auditSnapshots.map((snapshot) => structuredClone(snapshot))
     };
+  }
+
+  async snapshotForPolicy(policyId: string): Promise<PolicyLedgerSnapshot> {
+    const policy = this.policies.get(policyId);
+    return {
+      policies: policy ? [structuredClone(policy)] : [],
+      workflowEvents: this.workflowEvents
+        .filter((event) => event.policyId === policyId)
+        .map((event) => structuredClone(event)),
+      paymentEvents: this.paymentEvents
+        .filter((event) => event.policyId === policyId)
+        .map((event) => structuredClone(event)),
+      auditSnapshots: this.auditSnapshots
+        .filter((snapshot) => snapshot.policyId === policyId)
+        .map((snapshot) => structuredClone(snapshot))
+    };
+  }
+
+  async getOperatorReviewQueue(): Promise<OperatorReviewItem[]> {
+    return buildOperatorReviewQueue(await this.snapshot());
   }
 }
 

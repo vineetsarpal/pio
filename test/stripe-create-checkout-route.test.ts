@@ -1,6 +1,19 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Mock the durable-store factory with an in-memory store so the route persists
+// its quote without needing Neon.
+const hoisted = vi.hoisted(() => ({ storeRef: {} as { current?: unknown } }));
+vi.mock("../lib/policy-store-factory", () => ({
+  getPolicyStore: () => hoisted.storeRef.current
+}));
+
 import { POST } from "../app/api/stripe/create-checkout/route";
 import { demoCoverageRequest } from "../lib/demo-fixtures";
+import { InMemoryPolicyStore } from "../lib/policy-store";
+
+beforeEach(() => {
+  hoisted.storeRef.current = new InMemoryPolicyStore();
+});
 
 const originalFetch = globalThis.fetch;
 const originalStripeKey = process.env.STRIPE_SECRET_KEY;
@@ -66,7 +79,6 @@ describe("POST /api/stripe/create-checkout", () => {
         url: "https://checkout.stripe.com/c/pay/cs_test_route_123"
       },
       policy: {
-        id: "pio-pol-2026-0001",
         premium: { amount: 25, currency: "USD" }
       }
     });
@@ -101,8 +113,10 @@ describe("POST /api/stripe/create-checkout", () => {
 
     const firstHeaders = fetchMock.mock.calls[0][1]?.headers as Record<string, string>;
     const secondHeaders = fetchMock.mock.calls[1][1]?.headers as Record<string, string>;
-    expect(firstHeaders["Idempotency-Key"]).toMatch(/^pio-buy-checkout-pio-pol-2026-0001-/);
-    expect(secondHeaders["Idempotency-Key"]).toMatch(/^pio-buy-checkout-pio-pol-2026-0001-/);
+    // Each request mints a unique policy id, so the per-policy idempotency key
+    // differs between requests (a fresh Stripe session per buy click).
+    expect(firstHeaders["Idempotency-Key"]).toMatch(/^pio-buy-checkout-pio-pol-/);
+    expect(secondHeaders["Idempotency-Key"]).toMatch(/^pio-buy-checkout-pio-pol-/);
     expect(firstHeaders["Idempotency-Key"]).not.toBe(secondHeaders["Idempotency-Key"]);
   });
 

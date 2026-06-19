@@ -1,32 +1,7 @@
 import { NextResponse } from "next/server";
-import { demoCoverageRequest } from "@/lib/demo-fixtures";
 import { handlePremiumCollectedEvent } from "@/lib/payment-events";
-import { InMemoryPolicyStore, workflowEvent } from "@/lib/policy-store";
+import { getPolicyStore } from "@/lib/policy-store-factory";
 import { normalizeStripeCheckoutCompletedEvent, verifyStripeWebhookSignature } from "@/lib/stripe-webhook";
-import { quotePolicy } from "@/lib/workflow";
-
-const globalStripeWebhookState = globalThis as typeof globalThis & {
-  pioStripeWebhookStore?: InMemoryPolicyStore;
-  pioStripeWebhookSeed?: Promise<void>;
-};
-
-const store = (globalStripeWebhookState.pioStripeWebhookStore ??= new InMemoryPolicyStore());
-const seedStore =
-  globalStripeWebhookState.pioStripeWebhookSeed ??=
-  (async () => {
-    const demoPolicy = quotePolicy(demoCoverageRequest);
-    await store.savePolicy(demoPolicy);
-    await store.appendWorkflowEvent(
-      workflowEvent({
-        policyId: demoPolicy.id,
-        at: "2026-06-17T09:01:03-04:00",
-        kind: "policy_quoted",
-        actor: "PIO deterministic engine",
-        summary: "Demo quote seeded for Stripe checkout.session.completed webhook.",
-        data: { premium: demoPolicy.premium, payout: demoPolicy.payout, trigger: demoPolicy.trigger }
-      })
-    );
-  })();
 
 export async function POST(request: Request) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -70,7 +45,10 @@ export async function POST(request: Request) {
     );
   }
 
-  await seedStore;
+  // Activate the policy that create-checkout persisted under this policy_id. The
+  // success redirect is not payment truth; this verified webhook event is the
+  // only thing that advances the policy to premium_paid.
+  const store = getPolicyStore();
   const result = await handlePremiumCollectedEvent(normalized.premiumCollected, store);
   return NextResponse.json(
     {

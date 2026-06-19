@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "project": {
+    "initializedAt": "2026-06-19T00:34:29.969Z",
+    "merchantDisplayName": null,
+    "merchantId": "acct_1TjkrAGVuibXuuBZ",
+    "projectId": "project_61UtELVAo63DiLciH16Ut8oWBrA8K0wiKgFOtwUYiHJw",
+    "projectName": "pio"
+  },
+  "providers": {
+    "neon": {
+      "accountRequestId": "facctrq_61UtEW6J0HnbXijhD16Ut8oWBrA8K0wiKgFOtwUYiIlk",
+      "configuration": {},
+      "linkedAt": "2026-06-19T00:47:29.067Z",
+      "providerId": "prvdr_61UH8uNXFdoJUJOtT54AC",
+      "providerName": "Neon",
+      "redirectUrl": null,
+      "requestedAt": "2026-06-19T00:45:28.184Z",
+      "status": "complete"
+    }
+  },
+  "resources": {
+    "neon-plan": {
+      "configuration": {},
+      "createdAt": "2026-06-19T00:47:32.075Z",
+      "lastRevealedAt": "2026-06-19T00:47:32.375Z",
+      "lastStatus": "complete",
+      "name": "neon-plan",
+      "providerId": "prvdr_61UH8uNXFdoJUJOtT54AC",
+      "providerName": "Neon",
+      "resourceId": "fres_61UtEY6pNqUHCr6Z116Ut8oWBrA8K0wiKgFOtwUYiRDE",
+      "serviceId": "free"
+    },
+    "neon-postgres": {
+      "configuration": {},
+      "createdAt": "2026-06-19T00:48:21.655Z",
+      "lastRevealedAt": "2026-06-19T00:48:22.045Z",
+      "lastStatus": "complete",
+      "name": "neon-postgres",
+      "providerId": "prvdr_61UH8uNXFdoJUJOtT54AC",
+      "providerName": "Neon",
+      "resourceId": "fres_61UtEYt7j0kxDWPGK16Ut8oWBrA8K0wiKgFOtwUYiTOS",
+      "serviceId": "postgres"
+    }
+  }
+}

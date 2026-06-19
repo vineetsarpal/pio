@@ -4,29 +4,127 @@
 
 :root {
   color-scheme: light;
-  background: #f5f7fb;
-  color: #18202f;
+  --paper: #e9e0cd;
+  --ink: #17150e;
+  --line: #cdbfa0;
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
 body {
   margin: 0;
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(245, 247, 251, 0.94)),
-    url("https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2200&q=80");
+  color: var(--ink);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  background-color: var(--paper);
+  /* blueprint grid + faint diagonal rain hatch, layered over paper */
+  background-image:
+    linear-gradient(rgba(31, 51, 168, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(31, 51, 168, 0.04) 1px, transparent 1px),
+    repeating-linear-gradient(
+      18deg,
+      rgba(23, 21, 14, 0.018) 0px,
+      rgba(23, 21, 14, 0.018) 1px,
+      transparent 1px,
+      transparent 9px
+    );
+  background-size:
+    30px 30px,
+    30px 30px,
+    auto;
   background-attachment: fixed;
-  background-position: center top;
-  background-size: cover;
+}
+
+/* fine grain overlay so the paper never reads as flat digital fill */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E");
+}
+
+body > * {
+  position: relative;
+  z-index: 1;
 }
 
 button,
 input,
 select {
   font: inherit;
+}
+
+::selection {
+  background: #1f33a8;
+  color: #f7f2e6;
+}
+
+@layer components {
+  /* Editorial kicker label — small mono, tracked, uppercase */
+  .kicker {
+    @apply font-mono text-[0.68rem] font-medium uppercase tracking-kicker text-ink-soft;
+  }
+
+  /* Standard ruled panel: warm card, hairline border, square corners */
+  .panel {
+    @apply relative border border-line bg-card shadow-panel;
+  }
+
+  /* Quiet nested box used inside panels (replaces the old grey fills) */
+  .quiet {
+    @apply border border-line/70 bg-paper/60;
+  }
+
+  /* Ruled tag / status pill — bracketed mono */
+  .tag {
+    @apply inline-flex items-center gap-1.5 border border-current px-2 py-0.5 font-mono text-[0.66rem] font-semibold uppercase tracking-wider;
+  }
+
+  /* Primary action: solid ink, inverts to cobalt on hover */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 border border-ink bg-ink px-5 py-3 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-card transition-colors duration-200 hover:border-rain hover:bg-rain disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  /* Secondary action: outline on paper */
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 border border-ink bg-transparent px-5 py-3 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-ink transition-colors duration-200 hover:bg-ink hover:text-card;
+  }
+
+  .field-input {
+    @apply mt-1.5 w-full border border-line bg-paper/50 px-3 py-2 font-mono text-sm text-ink outline-none transition focus:border-rain focus:bg-card focus:ring-2 focus:ring-rain/20;
+  }
+}
+
+@layer utilities {
+  /* corner registration ticks for a print/field-report feel */
+  .reg::before,
+  .reg::after {
+    content: "";
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-color: var(--ink);
+    opacity: 0.45;
+  }
+  .reg::before {
+    top: -1px;
+    left: -1px;
+    border-top: 1.5px solid;
+    border-left: 1.5px solid;
+  }
+  .reg::after {
+    bottom: -1px;
+    right: -1px;
+    border-bottom: 1.5px solid;
+    border-right: 1.5px solid;
+  }
 }

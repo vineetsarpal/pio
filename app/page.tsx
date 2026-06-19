@@ -2,99 +2,179 @@ import { Activity, ArrowRight, CloudRain, Plane, ShieldCheck } from "lucide-reac
 
 const products = [
   {
+    figure: "Fig. 01",
     name: "Rain event protection",
-    description: "Outdoor event coverage priced from weather risk and paid when rainfall crosses a fixed trigger.",
+    description:
+      "Outdoor event coverage priced from weather risk and paid when rainfall crosses a fixed trigger.",
     trigger: "Rainfall total > 5 mm",
     api: "Weather API",
     icon: CloudRain
   },
   {
+    figure: "Fig. 02",
     name: "Flight delay protection",
-    description: "Trip coverage priced from route delay risk and paid when arrival delay crosses the covered threshold.",
+    description:
+      "Trip coverage priced from route delay risk and paid when arrival delay crosses the covered threshold.",
     trigger: "Arrival delay > 90 min",
     api: "Flight status API",
     icon: Plane
   }
 ];
 
+const ledger = [
+  ["01", "Quote", "Deterministic pricing reads live risk"],
+  ["02", "Collect", "Stripe test-mode premium, event-verified"],
+  ["03", "Monitor", "Oracle observations vs. fixed trigger"],
+  ["04", "Settle", "Typed functions approve & request payout"]
+];
+
 export default function Home() {
   return (
-    <main className="min-h-screen bg-fog/90 px-4 py-8 text-ink sm:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-6xl flex-col gap-5">
-        <div className="rounded-lg border border-amber/40 bg-amber/10 p-4 text-sm leading-6 text-slate-700">
-          <strong>Hackathon demo only.</strong> PIO uses Stripe test mode and does not issue real
-          insurance, coverage, or legally binding payouts.
+    <main className="px-4 py-10 text-ink sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-7xl flex-col gap-10">
+        {/* Caution dateline */}
+        <div
+          className="flex animate-rise items-center gap-3 border-y border-signal/40 bg-signal/5 px-3 py-2 font-mono text-[0.66rem] uppercase tracking-wider text-signal"
+          style={{ animationDelay: "40ms" }}
+        >
+          <span className="border border-signal px-1.5 py-0.5">Notice</span>
+          <span className="text-ink-soft">
+            Hackathon demo only — Stripe test mode. No real insurance, coverage, or legally binding
+            payouts are issued.
+          </span>
         </div>
 
-        <header className="rounded-lg border border-white/80 bg-white/90 p-6 shadow-panel">
-          <div className="inline-flex items-center gap-2 rounded-full border border-rain/20 bg-rain/10 px-3 py-1 text-sm font-medium text-rain">
-            <ShieldCheck size={16} />
-            Parametric coverage issued by an AI ops agent
-          </div>
-          <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-normal text-ink sm:text-5xl">
-            Quote, price, and issue parametric policies from one guided workflow.
-          </h1>
-          <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600">
-            Customers choose a coverage type, Hermes captures the required details, the relevant risk
-            API informs premium, and PIO prepares a policy packet before Stripe test-mode checkout.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <a
-              className="inline-flex items-center gap-2 rounded-lg bg-rain px-5 py-3 font-semibold text-white shadow-panel"
-              href="/buy"
+        {/* Lead / front page */}
+        <header className="grid gap-8 lg:grid-cols-[1.35fr_0.65fr] lg:items-end">
+          <div>
+            <div
+              className="mb-5 inline-flex animate-rise items-center gap-2 border border-rain bg-rain/10 px-3 py-1 font-mono text-[0.68rem] uppercase tracking-kicker text-rain"
+              style={{ animationDelay: "80ms" }}
             >
-              Start coverage quote
-              <ArrowRight size={18} />
-            </a>
-            <a
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-5 py-3 font-semibold text-ink"
-              href="/ops"
+              <ShieldCheck size={13} />
+              Coverage issued by an AI operations agent
+            </div>
+            <h1
+              className="max-w-4xl animate-rise text-balance font-display text-5xl font-semibold leading-[0.98] tracking-tight sm:text-6xl lg:text-[4.7rem]"
+              style={{ animationDelay: "140ms" }}
             >
-              View operator dashboard
-            </a>
-          </div>
-        </header>
-
-        <section className="grid gap-4 md:grid-cols-2">
-          {products.map((product) => {
-            const Icon = product.icon;
-            return (
-              <article key={product.name} className="rounded-lg border border-white/80 bg-white/90 p-5 shadow-panel">
-                <div className="flex items-start gap-4">
-                  <span className="rounded-lg bg-rain/10 p-3 text-rain">
-                    <Icon size={24} />
-                  </span>
-                  <div>
-                    <h2 className="text-xl font-semibold">{product.name}</h2>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">{product.description}</p>
-                    <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold uppercase text-slate-500">
-                      <span className="rounded bg-slate-100 px-2 py-1">{product.trigger}</span>
-                      <span className="rounded bg-slate-100 px-2 py-1">{product.api}</span>
-                    </div>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </section>
-
-        <section className="rounded-lg border border-white/80 bg-white/90 p-5 shadow-panel">
-          <div className="flex items-start gap-4">
-            <span className="rounded-lg bg-mint/10 p-3 text-mint">
-              <Activity size={24} />
-            </span>
-            <div>
-              <p className="text-sm font-semibold uppercase text-mint">Demo flow</p>
-              <h2 className="mt-1 text-2xl font-semibold">Customer quote in /buy, controls and audit in /ops</h2>
-              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-600">
-                Use `/buy` to run the customer-facing quote, API telemetry, policy packet, and Stripe
-                checkout path. Use `/ops` to show the operator view: state transitions, payment truth,
-                weather evidence, payout controls, review queue, and audit trail.
-              </p>
+              Quote, price &amp; issue parametric policies from one{" "}
+              <span className="italic text-rain">guided workflow.</span>
+            </h1>
+            <p
+              className="mt-6 max-w-2xl animate-rise text-pretty text-lg leading-8 text-ink-soft"
+              style={{ animationDelay: "220ms" }}
+            >
+              A customer chooses a coverage type, the agent captures only the required details, the
+              relevant risk API informs premium, and PIO prepares a policy packet before Stripe
+              test-mode checkout.
+            </p>
+            <div
+              className="mt-8 flex animate-rise flex-wrap gap-3"
+              style={{ animationDelay: "300ms" }}
+            >
+              <a className="btn shadow-riso" href="/buy">
+                Start coverage quote
+                <ArrowRight size={16} />
+              </a>
+              <a className="btn-ghost" href="/ops">
+                View operator dashboard
+              </a>
             </div>
           </div>
+
+          {/* Specimen card */}
+          <aside
+            className="reg animate-rise self-stretch border border-ink bg-card p-5 shadow-riso"
+            style={{ animationDelay: "360ms" }}
+          >
+            <div className="flex items-center justify-between border-b border-line pb-3">
+              <span className="kicker">Specimen Certificate</span>
+              <span className="tag text-mint">Issued</span>
+            </div>
+            <dl className="mt-4 space-y-3 font-mono text-sm">
+              <SpecRow label="Certificate" value="PIO-RAIN-0001" />
+              <SpecRow label="Premium" value="$25.00" />
+              <SpecRow label="Fixed payout" value="$500.00" />
+              <SpecRow label="Trigger" value="rainfall > 5mm" />
+            </dl>
+            <div className="mt-4 flex items-center gap-3 border border-mint/40 bg-mint/10 px-3 py-2">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-mint text-mint">
+                <ShieldCheck size={16} />
+              </span>
+              <p className="font-mono text-[0.66rem] uppercase leading-snug tracking-wider text-mint">
+                Activated only after event-verified premium
+              </p>
+            </div>
+          </aside>
+        </header>
+
+        {/* Coverage catalog */}
+        <section>
+          <div className="mb-4 flex items-end justify-between border-b border-ink pb-2">
+            <h2 className="font-display text-2xl font-semibold">Coverage catalog</h2>
+            <span className="kicker">Two parametric lines</span>
+          </div>
+          <div className="grid gap-px border border-line bg-line md:grid-cols-2">
+            {products.map((product) => {
+              const Icon = product.icon;
+              return (
+                <article key={product.name} className="group bg-card p-6 transition-colors hover:bg-paper/60">
+                  <div className="flex items-start justify-between">
+                    <span className="flex h-12 w-12 items-center justify-center border border-ink bg-rain/10 text-rain transition-transform group-hover:-translate-y-0.5">
+                      <Icon size={22} />
+                    </span>
+                    <span className="kicker">{product.figure}</span>
+                  </div>
+                  <h3 className="mt-5 font-display text-2xl font-semibold">{product.name}</h3>
+                  <p className="mt-2 max-w-md text-pretty leading-7 text-ink-soft">
+                    {product.description}
+                  </p>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <span className="tag text-rain">{product.trigger}</span>
+                    <span className="tag text-ink-soft">{product.api}</span>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Demo flow ledger */}
+        <section className="reg border border-ink bg-card p-6 sm:p-8">
+          <div className="flex items-start gap-4">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center border border-mint bg-mint/10 text-mint">
+              <Activity size={22} />
+            </span>
+            <div>
+              <p className="kicker text-mint">Demo flow</p>
+              <h2 className="mt-1 max-w-3xl font-display text-3xl font-semibold leading-tight">
+                Customer quote in <span className="text-rain">/buy</span>, controls &amp; audit in{" "}
+                <span className="text-rain">/ops</span>
+              </h2>
+            </div>
+          </div>
+          <ol className="mt-7 grid gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+            {ledger.map(([n, title, body]) => (
+              <li key={n} className="bg-card p-4">
+                <span className="font-display text-3xl font-semibold text-rain">{n}</span>
+                <p className="mt-2 font-mono text-[0.7rem] uppercase tracking-wider">{title}</p>
+                <p className="mt-1 text-sm leading-6 text-ink-soft">{body}</p>
+              </li>
+            ))}
+          </ol>
         </section>
       </div>
     </main>
+  );
+}
+
+function SpecRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="text-[0.66rem] uppercase tracking-wider text-ink-soft">{label}</dt>
+      <dd className="flex-1 border-b border-dotted border-line" />
+      <dd className="font-semibold text-ink">{value}</dd>
+    </div>
   );
 }
