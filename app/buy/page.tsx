@@ -3,6 +3,12 @@
 import type { FormEvent, ReactNode } from "react";
 import { useState } from "react";
 import { Activity, CalendarClock, CloudRain, Plane, ShieldCheck, Sparkles } from "lucide-react";
+import dynamic from "next/dynamic";
+
+const LocationPicker = dynamic(() => import("@/components/LocationPicker"), {
+  ssr: false,
+  loading: () => <div className="h-64 animate-pulse border border-line md:col-span-2" />
+});
 
 type ProductId = "rain_event" | "flight_delay";
 
@@ -360,9 +366,11 @@ function RainFields() {
     <>
       <Field name="customerName" label="Customer" defaultValue={defaultRain.customerName} />
       <Field name="eventName" label="Event" defaultValue={defaultRain.eventName} />
-      <Field name="locationName" label="Location" defaultValue={defaultRain.locationName} />
-      <Field name="latitude" label="Latitude" defaultValue={defaultRain.latitude} />
-      <Field name="longitude" label="Longitude" defaultValue={defaultRain.longitude} />
+      <LocationPicker
+        defaultLat={Number(defaultRain.latitude)}
+        defaultLng={Number(defaultRain.longitude)}
+        defaultLocationName={defaultRain.locationName}
+      />
       <Field name="eventStart" label="Event start" defaultValue={defaultRain.eventStart} type="datetime-local" />
       <Field name="eventEnd" label="Event end" defaultValue={defaultRain.eventEnd} type="datetime-local" />
       <Field name="desiredPayout" label="Desired payout USD" defaultValue={defaultRain.desiredPayout} />
