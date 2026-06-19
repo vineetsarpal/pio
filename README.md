@@ -26,20 +26,20 @@ Then open `http://localhost:3000`.
 
 The money path (quote → checkout → webhook → settlement) is durable: it persists
 to Neon Postgres via the `PostgresPolicyStore`. The runtime routes require
-`DATABASE_URL` and fail loudly if it is missing — they never silently fall back
-to an ephemeral in-memory store.
+`NEON_POSTGRES_CONNECTION_STRING` and fail loudly if it is missing — they never
+silently fall back to an ephemeral in-memory store.
 
-1. Copy `.env.example` to `.env.local` and set `DATABASE_URL` to the Neon
-   **pooled** connection string (the `-pooler` host from the Neon dashboard).
-   The **direct** string is provisioned by the Stripe Projects CLI as
-   `NEON_POSTGRES_CONNECTION_STRING` in the CLI-managed `.env` and is used for
-   migrations only.
-2. Apply the schema:
+`NEON_POSTGRES_CONNECTION_STRING` is provisioned and managed by the Stripe
+Projects CLI in `.env` (loaded automatically by Next.js), so local dev needs no
+extra setup. The same variable drives both the runtime store and migrations; for
+production scale you can point it at the pooled `-pooler` Neon endpoint.
 
-   ```bash
-   npm run db:migrate      # applies committed migrations (direct URL)
-   npm run db:generate     # regenerate migrations after editing lib/db/schema.ts
-   ```
+Apply the schema:
+
+```bash
+npm run db:migrate      # applies committed migrations
+npm run db:generate     # regenerate migrations after editing lib/db/schema.ts
+```
 
 The schema is authored in `lib/db/schema.ts`; migrations are committed under
 `drizzle/`. `InMemoryPolicyStore` remains as the test double — the unit suite
@@ -74,7 +74,7 @@ PIO separates deterministic insurance logic from the agent orchestration and ext
 - `lib/policy-store.ts` — source-of-truth policy ledger interface, the in-memory test-double implementation, and the `withTransaction` unit-of-work
 - `lib/postgres-policy-store.ts` — durable Neon-backed `PolicyStore` (Drizzle), with DB-enforced idempotency constraints and atomic transactions
 - `lib/db/schema.ts`, `lib/db/client.ts` — Drizzle schema (JSONB-blob + key columns) and the cached neon-serverless client
-- `lib/policy-store-factory.ts` — `getPolicyStore()` for runtime routes; requires `DATABASE_URL`, no in-memory fallback
+- `lib/policy-store-factory.ts` — `getPolicyStore()` for runtime routes; requires `NEON_POSTGRES_CONNECTION_STRING`, no in-memory fallback
 - `lib/weather-oracle.ts` — seeded replay and Open-Meteo weather oracle adapters
 - `lib/payment-adapter.ts` — Stripe Skills-shaped payment adapter boundary
 - `lib/payment-events.ts` — immutable premium and payout event handlers

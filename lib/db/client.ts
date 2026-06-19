@@ -21,11 +21,21 @@ const globalForDb = globalThis as typeof globalThis & {
   pioDb?: Db;
 };
 
+/**
+ * The durable Postgres connection string. `NEON_POSTGRES_CONNECTION_STRING` is
+ * provisioned by Stripe Projects (and loaded from `.env` by Next.js), so local
+ * dev works with no extra setup. For production scale you can point this var at
+ * the pooled `-pooler` Neon endpoint instead of the direct one — same variable.
+ */
+export function resolveDatabaseUrl(): string | undefined {
+  return process.env.NEON_POSTGRES_CONNECTION_STRING;
+}
+
 export function getDb(): Db {
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = resolveDatabaseUrl();
   if (!connectionString) {
     throw new Error(
-      "DATABASE_URL is not set. The policy store must be durable; point DATABASE_URL at the Neon pooled connection string."
+      "NEON_POSTGRES_CONNECTION_STRING is not set. The policy store must be durable; in-memory is test-only."
     );
   }
   if (globalForDb.pioDb) {

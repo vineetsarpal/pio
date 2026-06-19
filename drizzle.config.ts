@@ -1,9 +1,9 @@
 import "dotenv/config";
 import { defineConfig } from "drizzle-kit";
 
-// Migrations run against the DIRECT (unpooled) Neon connection string — the one
-// provisioned by Stripe Projects — because DDL should not go through PgBouncer's
-// transaction-pooling mode. Runtime queries use the pooled DATABASE_URL instead.
+// Migrations and the runtime store both read NEON_POSTGRES_CONNECTION_STRING,
+// provisioned by Stripe Projects. Point it at the direct (unpooled) endpoint for
+// migrations; DDL should not run through PgBouncer's transaction-pooling mode.
 export default defineConfig({
   schema: "./lib/db/schema.ts",
   out: "./drizzle",
