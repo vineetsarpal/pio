@@ -3,6 +3,76 @@ import { lookupAeroDataBoxFlights, type FlightLookupResult } from "./aerodatabox
 
 const USD = (amount: number): Money => ({ amount, currency: "USD" });
 
+export type CoverageQuoteFailureCode =
+  | "invalid_dates"
+  | "unsupported_location"
+  | "invalid_coverage"
+  | "expired_quote";
+
+export class CoverageQuoteValidationError extends Error {
+  constructor(readonly reasonCode: CoverageQuoteFailureCode, message: string) {
+    super(message);
+    this.name = "CoverageQuoteValidationError";
+  }
+}
+
+const COVERAGE_MIN = 100;
+const COVERAGE_MAX = 50_000;
+const MAX_WINDOW_HOURS = 168;
+const QUOTE_TTL_MS = 15 * 60 * 1000;
+
+function validateCoverageAmount(payout: Money): void {
+  if (!Number.isFinite(payout.amount) || payout.amount < COVERAGE_MIN || payout.amount > COVERAGE_MAX) {
+    throw new CoverageQuoteValidationError(
+      "invalid_coverage",
+      `desiredPayout.amount must be between ${COVERAGE_MIN} and ${COVERAGE_MAX}.`
+    );
+  }
+}
+
+function validateWindow(start: string, end: string, now: Date): void {
+  const startMs = new Date(start).getTime();
+  const endMs = new Date(end).getTime();
+  if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) {
+    throw new CoverageQuoteValidationError(
+      "invalid_dates",
+      "Coverage window must have valid start and end dates with end after start."
+    );
+  }
+  if (endMs <= now.getTime()) {
+    throw new CoverageQuoteValidationError(
+      "expired_quote",
+      "Coverage window ends in the past; request a future window."
+    );
+  }
+  if ((endMs - startMs) / 3_600_000 > MAX_WINDOW_HOURS) {
+    throw new CoverageQuoteValidationError(
+      "invalid_dates",
+      `Coverage windows longer than ${MAX_WINDOW_HOURS} hours are not supported.`
+    );
+  }
+}
+
+function validateCoordinates(latitude: number, longitude: number): void {
+  if (
+    !Number.isFinite(latitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    !Number.isFinite(longitude) ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    throw new CoverageQuoteValidationError(
+      "unsupported_location",
+      "location coordinates must be valid latitude/longitude values."
+    );
+  }
+}
+
+function quoteExpiry(now: Date): string {
+  return new Date(now.getTime() + QUOTE_TTL_MS).toISOString();
+}
+
 export type RainEventQuoteInput = {
   productId: "rain_event";
   customerName: string;
@@ -80,6 +150,7 @@ export type ProductQuote = {
   policy: Policy;
   risk: RiskAssessment;
   packet: PolicyPacket;
+  expiresAt: string;
   agentNarrative: string[];
 };
 
@@ -115,12 +186,17 @@ export const coverageProducts = [
 
 export async function quoteCoverageProduct(
   input: ProductQuoteInput,
-  adapters: ProductRiskAdapters = {}
+  adapters: ProductRiskAdapters = {},
+  options: { now?: Date } = {}
 ): Promise<ProductQuote> {
+  const now = options.now ?? new Date();
   assertUsd(input.desiredPayout, "desiredPayout");
   if (input.maximumPremium) assertUsd(input.maximumPremium, "maximumPremium");
+  validateCoverageAmount(input.desiredPayout);
 
   if (input.productId === "rain_event") {
+    validateCoordinates(input.latitude, input.longitude);
+    validateWindow(input.eventStart, input.eventEnd, now);
     const weather = adapters.weather ?? new OpenMeteoPricingApi();
     const risk = await weather.getRainEventRisk(input);
     const deductible = input.deductible ?? USD(0);
@@ -128,9 +204,10 @@ export async function quoteCoverageProduct(
     const premium = calculatePremium(payout.amount, 0.034, risk.pricingAdjustment, eventHours(input.eventStart, input.eventEnd));
     enforcePremiumCap(premium, input.maximumPremium);
     const policy = buildRainPolicy(input, premium, risk, deductible, payout);
-    return buildQuote(input.productId, policy, risk, buildRainPacket(policy, risk));
+    return buildQuote(input.productId, policy, risk, buildRainPacket(policy, risk), quoteExpiry(now));
   }
 
+  validateWindow(input.departureTime, input.arrivalTime, now);
   const flight = adapters.flight ?? new AeroDataBoxFlightStatusPricingApi();
   const risk = await flight.getFlightDelayRisk(input);
   const deductible = input.deductible ?? USD(0);
@@ -138,7 +215,7 @@ export async function quoteCoverageProduct(
   const premium = calculatePremium(payout.amount, 0.042, risk.pricingAdjustment, flightHours(input.departureTime, input.arrivalTime));
   enforcePremiumCap(premium, input.maximumPremium);
   const policy = buildFlightPolicy(input, premium, risk, deductible, payout);
-  return buildQuote(input.productId, policy, risk, buildFlightPacket(policy, risk, input));
+  return buildQuote(input.productId, policy, risk, buildFlightPacket(policy, risk, input), quoteExpiry(now));
 }
 
 export class OpenMeteoPricingApi implements WeatherPricingApi {
@@ -299,7 +376,13 @@ export class AeroDataBoxFlightStatusPricingApi implements FlightStatusPricingApi
   }
 }
 
-function buildQuote(productId: CoverageProductId, policy: Policy, risk: RiskAssessment, packet: PolicyPacket): ProductQuote {
+function buildQuote(
+  productId: CoverageProductId,
+  policy: Policy,
+  risk: RiskAssessment,
+  packet: PolicyPacket,
+  expiresAt: string
+): ProductQuote {
   const product = coverageProducts.find((candidate) => candidate.id === productId);
   if (!product) throw new Error(`Unsupported coverage product ${productId}.`);
 
@@ -312,6 +395,7 @@ function buildQuote(productId: CoverageProductId, policy: Policy, risk: RiskAsse
     policy,
     risk,
     packet,
+    expiresAt,
     agentNarrative: [
       `Hermes selected ${product.name} and called the ${risk.sourceLabel}.`,
       `The risk score is ${risk.score}/100 based on ${risk.observedMetric.label.toLowerCase()} of ${risk.observedMetric.value}.`,

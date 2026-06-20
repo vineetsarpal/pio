@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { RiskAssessment, WeatherPricingApi } from "../lib/coverage-products";
 import {
   AeroDataBoxFlightStatusPricingApi,
+  CoverageQuoteValidationError,
   DemoFlightStatusPricingApi,
   quoteCoverageProduct
 } from "../lib/coverage-products";
@@ -13,8 +14,8 @@ const rainRequest = {
   locationName: "Toronto Waterfront",
   latitude: 43.6405,
   longitude: -79.3764,
-  eventStart: "2026-06-20T12:00:00-04:00",
-  eventEnd: "2026-06-20T18:00:00-04:00",
+  eventStart: "2027-06-19T12:00:00-04:00",
+  eventEnd: "2027-06-19T18:00:00-04:00",
   desiredPayout: { amount: 500, currency: "USD" as const },
   maximumPremium: { amount: 120, currency: "USD" as const }
 };
@@ -134,6 +135,55 @@ describe("quoteCoverageProduct", () => {
         { flight: new DemoFlightStatusPricingApi() }
       )
     ).rejects.toThrow("exceeds the maximum budget");
+  });
+
+  it("includes a future expiry on the quote", async () => {
+    const quote = await quoteCoverageProduct(rainRequest, {
+      weather: weatherRisk({ score: 24, pricingAdjustment: 0.032, value: "0.5 mm" }),
+      // adapters
+    }, { now: new Date("2027-06-18T00:00:00.000Z") });
+
+    expect(quote.expiresAt).toBe("2027-06-18T00:15:00.000Z");
+  });
+
+  it("rejects a coverage amount outside the supported range with a typed code", async () => {
+    await expect(
+      quoteCoverageProduct(
+        { ...rainRequest, desiredPayout: { amount: 10, currency: "USD" } },
+        { weather: weatherRisk({ score: 24, pricingAdjustment: 0.032, value: "0.5 mm" }) }
+      )
+    ).rejects.toMatchObject({
+      name: "CoverageQuoteValidationError",
+      reasonCode: "invalid_coverage"
+    });
+  });
+
+  it("rejects a window whose end is before its start", async () => {
+    await expect(
+      quoteCoverageProduct(
+        { ...rainRequest, eventStart: "2027-06-19T18:00:00-04:00", eventEnd: "2027-06-19T12:00:00-04:00" },
+        { weather: weatherRisk({ score: 24, pricingAdjustment: 0.032, value: "0.5 mm" }) }
+      )
+    ).rejects.toMatchObject({ reasonCode: "invalid_dates" });
+  });
+
+  it("rejects a coverage window that has already ended", async () => {
+    await expect(
+      quoteCoverageProduct(
+        rainRequest,
+        { weather: weatherRisk({ score: 24, pricingAdjustment: 0.032, value: "0.5 mm" }) },
+        { now: new Date("2027-06-20T00:00:00.000Z") }
+      )
+    ).rejects.toMatchObject({ reasonCode: "expired_quote" });
+  });
+
+  it("rejects invalid coordinates for a rain event", async () => {
+    await expect(
+      quoteCoverageProduct(
+        { ...rainRequest, latitude: 999, longitude: -79.3764 },
+        { weather: weatherRisk({ score: 24, pricingAdjustment: 0.032, value: "0.5 mm" }) }
+      )
+    ).rejects.toMatchObject({ reasonCode: "unsupported_location" });
   });
 });
 
