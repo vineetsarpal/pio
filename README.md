@@ -186,22 +186,13 @@ curl -X POST http://localhost:3000/api/agent/confirm-purchase \
 
 The confirmation endpoint re-quotes deterministically, re-checks the premium cap, verifies the quote id, and uses the idempotency key to replay identical confirmations or reject conflicting retries. It creates checkout only; issuing the policy still requires verified payment.
 
-Stripe premium-collected event:
+Stripe premium collection:
 
 ```bash
-curl -X POST http://localhost:3000/api/stripe/premium-collected \
-  -H "Content-Type: application/json" \
-  -d '{
-    "providerEventId": "evt_test_pio_premium_collected_0001",
-    "checkoutId": "cs_test_pio_premium_0001",
-    "policyId": "pio-pol-2026-0001",
-    "amount": { "amount": 25, "currency": "USD" },
-    "mode": "stripe_test_mode",
-    "paidAt": "2026-06-17T09:02:15-04:00"
-  }'
+stripe listen --forward-to localhost:3000/api/stripe/webhook
 ```
 
-Premium completion is modeled as an immutable payment event. The operator may ask Stripe Skills for status, but policy activation depends on the accepted `premium_collected` event tied to the checkout id.
+Stripe sends a signed `checkout.session.completed` event to the webhook. PIO verifies the signature, normalizes the event into an immutable `premium_collected` payment event, and activates the policy tied to the checkout id.
 
 Stripe payout-completed event:
 
