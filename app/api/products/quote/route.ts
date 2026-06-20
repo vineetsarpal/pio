@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { ProductQuoteInput } from "@/lib/coverage-products";
-import { quoteCoverageProduct } from "@/lib/coverage-products";
+import { CoverageQuoteValidationError, quoteCoverageProduct } from "@/lib/coverage-products";
 
 export async function POST(request: Request) {
   const input = (await request.json()) as ProductQuoteInput;
@@ -13,6 +13,17 @@ export async function POST(request: Request) {
       quote
     });
   } catch (error) {
+    if (error instanceof CoverageQuoteValidationError) {
+      return NextResponse.json(
+        {
+          accepted: false,
+          reasonCode: error.reasonCode,
+          message: error.message
+        },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
       {
         accepted: false,

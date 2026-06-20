@@ -15,13 +15,13 @@ describe("POST /api/products/quote", () => {
         JSON.stringify({
           hourly: {
             time: [
-              "2026-06-20T12:00",
-              "2026-06-20T13:00",
-              "2026-06-20T14:00",
-              "2026-06-20T15:00",
-              "2026-06-20T16:00",
-              "2026-06-20T17:00",
-              "2026-06-20T18:00"
+              "2027-06-19T12:00",
+              "2027-06-19T13:00",
+              "2027-06-19T14:00",
+              "2027-06-19T15:00",
+              "2027-06-19T16:00",
+              "2027-06-19T17:00",
+              "2027-06-19T18:00"
             ],
             rain: [0.8, 1.2, 1.1, 1.5, 1.0, 0.7, 0.6]
           }
@@ -40,8 +40,8 @@ describe("POST /api/products/quote", () => {
           locationName: "Toronto Waterfront",
           latitude: 43.6405,
           longitude: -79.3764,
-          eventStart: "2026-06-20T12:00:00-04:00",
-          eventEnd: "2026-06-20T18:00:00-04:00",
+          eventStart: "2027-06-19T12:00:00-04:00",
+          eventEnd: "2027-06-19T18:00:00-04:00",
           desiredPayout: { amount: 500, currency: "USD" },
           maximumPremium: { amount: 120, currency: "USD" }
         })
@@ -71,6 +71,31 @@ describe("POST /api/products/quote", () => {
           title: "Parametric rain event protection packet"
         }
       }
+    });
+  });
+
+  it("returns the granular reason code for a validation failure", async () => {
+    const response = await POST(
+      new Request("https://pio.test/api/products/quote", {
+        method: "POST",
+        body: JSON.stringify({
+          productId: "rain_event",
+          customerName: "North Pier Pop-up Market",
+          eventName: "Saturday Harbor Market",
+          locationName: "Toronto Waterfront",
+          latitude: 43.6405,
+          longitude: -79.3764,
+          eventStart: "2027-06-19T12:00:00-04:00",
+          eventEnd: "2027-06-19T18:00:00-04:00",
+          desiredPayout: { amount: 10, currency: "USD" }
+        })
+      })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      accepted: false,
+      reasonCode: "invalid_coverage"
     });
   });
 });
