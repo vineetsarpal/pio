@@ -316,7 +316,22 @@ export type PremiumCollectedEvent = {
   paidAt: string;
 };
 
-export type PremiumCollectedResult =
+export type LedgerApplyRejectionCode =
+  | "policy_not_found"
+  | "invalid_policy_state"
+  | "premium_amount_mismatch"
+  | "premium_currency_mismatch"
+  | "payout_amount_mismatch"
+  | "payout_currency_mismatch"
+  | "payout_not_requested"
+  | "payout_already_completed";
+
+/**
+ * The single result of applying any money event to the Ledger via
+ * `applyLedgerEvent`. Replaces the former per-event result types
+ * (premium/payout) which were structurally identical.
+ */
+export type LedgerApplyResult =
   | {
       accepted: true;
       policy: Policy;
@@ -325,12 +340,7 @@ export type PremiumCollectedResult =
     }
   | {
       accepted: false;
-      reasonCode:
-        | "policy_not_found"
-        | "premium_amount_mismatch"
-        | "premium_currency_mismatch"
-        | "invalid_policy_state"
-        | "payment_reference_conflict";
+      reasonCode: LedgerApplyRejectionCode;
       message: string;
     };
 
@@ -373,25 +383,6 @@ export type PayoutFailedEvent = {
   failedAt: string;
   failureReason: string;
 };
-
-export type PayoutEventResult =
-  | {
-      accepted: true;
-      policy: Policy;
-      paymentEvent: PaymentEvent;
-      idempotentReplay: boolean;
-    }
-  | {
-      accepted: false;
-      reasonCode:
-        | "policy_not_found"
-        | "invalid_policy_state"
-        | "payout_amount_mismatch"
-        | "payout_currency_mismatch"
-        | "payout_not_requested"
-        | "payout_already_completed";
-      message: string;
-    };
 
 export type PolicyLedgerSnapshot = {
   policies: Policy[];
