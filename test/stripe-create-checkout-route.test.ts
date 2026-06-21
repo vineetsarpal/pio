@@ -128,7 +128,7 @@ describe("POST /api/stripe/create-checkout", () => {
         return new Response(
           JSON.stringify({
             hourly: {
-              time: ["2026-06-20T12:00", "2026-06-20T13:00", "2026-06-20T14:00"],
+              time: ["2027-06-20T12:00", "2027-06-20T13:00", "2027-06-20T14:00"],
               rain: [2, 2, 2]
             }
           }),
@@ -155,8 +155,8 @@ describe("POST /api/stripe/create-checkout", () => {
           locationName: "Toronto Waterfront",
           latitude: 43.6405,
           longitude: -79.3764,
-          eventStart: "2026-06-20T12:00:00-04:00",
-          eventEnd: "2026-06-20T18:00:00-04:00",
+          eventStart: "2027-06-20T12:00:00-04:00",
+          eventEnd: "2027-06-20T18:00:00-04:00",
           desiredPayout: { amount: 500, currency: "USD" },
           deductible: { amount: 100, currency: "USD" },
           maximumPremium: { amount: 120, currency: "USD" }
