@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   normalizeStripeCheckoutCompletedEvent,
+  normalizeStripePayoutEvent,
   verifyStripeWebhookSignature
 } from "../lib/stripe-webhook";
 
@@ -106,5 +107,73 @@ describe("normalizeStripeCheckoutCompletedEvent", () => {
       ok: false,
       reasonCode: "missing_policy_metadata"
     });
+  });
+});
+
+describe("normalizeStripePayoutEvent", () => {
+  function payoutEvent(type: string, overrides: Record<string, unknown> = {}) {
+    return {
+      id: "evt_test_payout_001",
+      type,
+      created: 1781800123,
+      data: {
+        object: {
+          id: "po_test_001",
+          object: "payout",
+          amount: 50000,
+          currency: "usd",
+          status: type === "payout.paid" ? "paid" : "failed",
+          metadata: { policy_id: "pio-pol-2026-0001", request_id: "payout-request-pio-pol-2026-0001" },
+          ...overrides
+        }
+      }
+    };
+  }
+
+  it("normalizes a payout.paid event into a PayoutCompletedEvent", () => {
+    expect(normalizeStripePayoutEvent(payoutEvent("payout.paid"))).toEqual({
+      ok: true,
+      type: "payout.paid",
+      completed: {
+        providerEventId: "evt_test_payout_001",
+        requestId: "payout-request-pio-pol-2026-0001",
+        payoutReference: "po_test_001",
+        policyId: "pio-pol-2026-0001",
+        amount: { amount: 500, currency: "USD" },
+        mode: "stripe_test_mode",
+        paidAt: "2026-06-18T16:28:43.000Z"
+      }
+    });
+  });
+
+  it("normalizes a payout.failed event with its failure message", () => {
+    expect(
+      normalizeStripePayoutEvent(payoutEvent("payout.failed", { failure_message: "account_closed" }))
+    ).toEqual({
+      ok: true,
+      type: "payout.failed",
+      failed: {
+        providerEventId: "evt_test_payout_001",
+        requestId: "payout-request-pio-pol-2026-0001",
+        policyId: "pio-pol-2026-0001",
+        amount: { amount: 500, currency: "USD" },
+        mode: "stripe_test_mode",
+        failedAt: "2026-06-18T16:28:43.000Z",
+        failureReason: "account_closed"
+      }
+    });
+  });
+
+  it("rejects unsupported event types", () => {
+    expect(normalizeStripePayoutEvent(payoutEvent("payout.updated"))).toMatchObject({
+      ok: false,
+      reasonCode: "unsupported_event_type"
+    });
+  });
+
+  it("rejects a payout missing request metadata", () => {
+    expect(
+      normalizeStripePayoutEvent(payoutEvent("payout.paid", { metadata: { policy_id: "pio-pol-2026-0001" } }))
+    ).toMatchObject({ ok: false, reasonCode: "missing_request_metadata" });
   });
 });
