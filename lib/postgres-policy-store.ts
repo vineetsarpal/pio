@@ -89,6 +89,7 @@ export class PostgresPolicyStore implements PolicyStore {
         policyId: event.policyId,
         kind: event.kind,
         reference: event.reference,
+        eventIdentity: event.eventIdentity ?? null,
         at: new Date(event.at),
         data: event
       });
@@ -140,6 +141,18 @@ export class PostgresPolicyStore implements PolicyStore {
           eq(paymentEvents.reference, reference)
         )
       )
+      .limit(1);
+    return rows[0]?.data;
+  }
+
+  async findPaymentEventByIdentity(
+    policyId: string,
+    eventIdentity: string
+  ): Promise<PaymentEvent | undefined> {
+    const rows = await this.db
+      .select({ data: paymentEvents.data })
+      .from(paymentEvents)
+      .where(and(eq(paymentEvents.policyId, policyId), eq(paymentEvents.eventIdentity, eventIdentity)))
       .limit(1);
     return rows[0]?.data;
   }

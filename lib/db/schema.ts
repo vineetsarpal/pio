@@ -43,6 +43,7 @@ export const workflowEvents = pgTable(
  *  - unique (policy_id, kind, reference)        — no duplicate event
  *  - partial unique where kind=payout_requested — one request per policy
  *  - partial unique where kind=payout_issued    — one payout per policy
+ *  - partial unique on event_identity           — one apply per Stripe event
  */
 export const paymentEvents = pgTable(
   "payment_events",
@@ -54,6 +55,8 @@ export const paymentEvents = pgTable(
       .references(() => policies.id),
     kind: text("kind").$type<PaymentEvent["kind"]>().notNull(),
     reference: text("reference").notNull(),
+    // Stripe Event Identity (evt_…) for Inbound Money Events; null for outbound.
+    eventIdentity: text("event_identity"),
     at: timestamp("at", { withTimezone: true }).notNull(),
     data: jsonb("data").$type<PaymentEvent>().notNull()
   },
@@ -69,6 +72,9 @@ export const paymentEvents = pgTable(
     uniqueIndex("payment_events_one_payout_per_policy")
       .on(table.policyId)
       .where(sql`kind = 'payout_issued'`),
+    uniqueIndex("payment_events_event_identity_unique")
+      .on(table.eventIdentity)
+      .where(sql`event_identity is not null`),
     index("payment_events_policy_id_idx").on(table.policyId)
   ]
 );

@@ -27,7 +27,8 @@ export function handlePremiumCollectedEvent(
       reference: event.checkoutId,
       amount: event.amount,
       mode: event.mode,
-      providerEventId: event.providerEventId
+      providerEventId: event.providerEventId,
+      eventIdentity: event.providerEventId
     }),
     mutate: (policy) => markPremiumPaid(policy, event.checkoutId, event.paidAt),
     workflowEvent: (policy) => ({
@@ -145,7 +146,8 @@ export function handlePayoutCompletedEvent(
       reference: event.payoutReference,
       amount: event.amount,
       mode: event.mode,
-      providerEventId: event.providerEventId
+      providerEventId: event.providerEventId,
+      eventIdentity: event.providerEventId
     }),
     mutate: (policy) => settleClaim(policy, decision, event.payoutReference, event.paidAt).policy,
     workflowEvent: (policy) => ({
@@ -175,6 +177,7 @@ export function handlePayoutFailedEvent(
       amount: event.amount,
       mode: event.mode,
       providerEventId: event.providerEventId,
+      eventIdentity: event.providerEventId,
       failureReason: event.failureReason
     }),
     workflowEvent: (policy) => ({

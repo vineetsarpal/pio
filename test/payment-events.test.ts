@@ -96,6 +96,40 @@ describe("payment events", () => {
     expect(second.paymentEvent).toEqual(first.paymentEvent);
   });
 
+  it("replays on Stripe event identity even when the business reference differs", async () => {
+    const { store, policy } = await quotedStore();
+
+    const first = await handlePremiumCollectedEvent(
+      {
+        providerEventId: "evt_test_identity_001",
+        checkoutId: "cs_first",
+        policyId: policy.id,
+        amount: policy.premium,
+        mode: "stripe_test_mode",
+        paidAt: "2026-06-17T09:02:15-04:00"
+      },
+      store
+    );
+    // A Stripe redelivery: same event id (evt_…), different checkout reference.
+    const redelivery = await handlePremiumCollectedEvent(
+      {
+        providerEventId: "evt_test_identity_001",
+        checkoutId: "cs_redelivery_different_ref",
+        policyId: policy.id,
+        amount: policy.premium,
+        mode: "stripe_test_mode",
+        paidAt: "2026-06-17T09:02:15-04:00"
+      },
+      store
+    );
+
+    expect(first.accepted && redelivery.accepted).toBe(true);
+    if (!first.accepted || !redelivery.accepted) throw new Error("Expected identity replay.");
+    expect(first.idempotentReplay).toBe(false);
+    expect(redelivery.idempotentReplay).toBe(true);
+    expect(redelivery.paymentEvent.reference).toBe("cs_first");
+  });
+
   it("issues a paid policy and records a policy_issued workflow event", async () => {
     const { store, policy } = await quotedStore();
     await handlePremiumCollectedEvent(

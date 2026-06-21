@@ -49,6 +49,8 @@ export interface PolicyStore {
   appendAuditSnapshot(snapshot: AuditSnapshot): Promise<void>;
   getAuditSnapshot(snapshotId: string): Promise<AuditSnapshot | undefined>;
   findPaymentEvent(policyId: string, kind: PaymentEvent["kind"], reference: string): Promise<PaymentEvent | undefined>;
+  /** Find a payment event by its Stripe Event Identity (evt_…) — canonical webhook idempotency. */
+  findPaymentEventByIdentity(policyId: string, eventIdentity: string): Promise<PaymentEvent | undefined>;
   hasPayout(policyId: string): Promise<boolean>;
   /**
    * Run `fn` inside a single atomic unit of work. Every write performed via the
@@ -96,6 +98,10 @@ export class InMemoryPolicyStore implements PolicyStore {
       throw new DuplicateEventError("Policy store blocked duplicate payment event.");
     }
 
+    if (event.eventIdentity && (await this.findPaymentEventByIdentity(event.policyId, event.eventIdentity))) {
+      throw new DuplicateEventError("Policy store blocked duplicate event identity.");
+    }
+
     if (event.kind === "payout_requested" && (await this.hasPayoutRequest(event.policyId))) {
       throw new DuplicateEventError("Policy store blocked duplicate payout request event.");
     }
@@ -128,6 +134,16 @@ export class InMemoryPolicyStore implements PolicyStore {
     const event = this.paymentEvents.find(
       (candidate) =>
         candidate.policyId === policyId && candidate.kind === kind && candidate.reference === reference
+    );
+    return event ? structuredClone(event) : undefined;
+  }
+
+  async findPaymentEventByIdentity(
+    policyId: string,
+    eventIdentity: string
+  ): Promise<PaymentEvent | undefined> {
+    const event = this.paymentEvents.find(
+      (candidate) => candidate.policyId === policyId && candidate.eventIdentity === eventIdentity
     );
     return event ? structuredClone(event) : undefined;
   }

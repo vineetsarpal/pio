@@ -44,6 +44,17 @@ export async function applyLedgerEvent(store: PolicyStore, spec: LedgerEventSpec
       }
 
       const candidate = spec.paymentEvent(policy);
+
+      // Canonical Stripe idempotency: an Inbound Money Event carries its Event
+      // Identity (evt_…). If we have already applied that event, replay it —
+      // even if a redelivery arrives with a different business reference.
+      if (candidate.eventIdentity) {
+        const byIdentity = await tx.findPaymentEventByIdentity(policy.id, candidate.eventIdentity);
+        if (byIdentity) {
+          return { accepted: true, policy, paymentEvent: byIdentity, idempotentReplay: true };
+        }
+      }
+
       const existing = await tx.findPaymentEvent(policy.id, candidate.kind, candidate.reference);
       if (existing) {
         return { accepted: true, policy, paymentEvent: existing, idempotentReplay: true };

@@ -1,0 +1,2 @@
+ALTER TABLE "payment_events" ADD COLUMN "event_identity" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_events_event_identity_unique" ON "payment_events" USING btree ("event_identity") WHERE event_identity is not null;

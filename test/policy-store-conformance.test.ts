@@ -70,6 +70,42 @@ describe.each(harnesses)("$name conformance", ({ create }) => {
     await expect(store.appendPaymentEvent(event)).rejects.toBeInstanceOf(DuplicateEventError);
   });
 
+  it("blocks a duplicate Stripe event identity and finds an event by identity", async () => {
+    const policy = quotePolicy(demoCoverageRequest);
+    await store.savePolicy(policy);
+    const event = paymentEvent({
+      policyId: policy.id,
+      at: "2026-06-17T09:01:08-04:00",
+      kind: "premium_collected",
+      reference: "cs_identity_a",
+      amount: policy.premium,
+      mode: "stripe_test_mode",
+      providerEventId: "evt_identity_conformance",
+      eventIdentity: "evt_identity_conformance"
+    });
+
+    await store.appendPaymentEvent(event);
+    expect(await store.findPaymentEventByIdentity(policy.id, "evt_identity_conformance")).toMatchObject({
+      reference: "cs_identity_a"
+    });
+
+    // Same identity, different business reference — still a duplicate.
+    await expect(
+      store.appendPaymentEvent(
+        paymentEvent({
+          policyId: policy.id,
+          at: "2026-06-17T09:01:09-04:00",
+          kind: "premium_collected",
+          reference: "cs_identity_b",
+          amount: policy.premium,
+          mode: "stripe_test_mode",
+          providerEventId: "evt_identity_conformance",
+          eventIdentity: "evt_identity_conformance"
+        })
+      )
+    ).rejects.toBeInstanceOf(DuplicateEventError);
+  });
+
   it("enforces one payout per policy across different references", async () => {
     const policy = quotePolicy(demoCoverageRequest);
     await store.savePolicy(policy);

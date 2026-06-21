@@ -304,6 +304,12 @@ export type PaymentEvent = {
   amount: Money;
   mode: PaymentMode;
   providerEventId?: string;
+  /**
+   * The Stripe event id (`evt_…`) for an Inbound Money Event — its Event
+   * Identity, used as the canonical idempotency key. Unset for outbound events
+   * (e.g. payout_requested), which dedup on (kind, reference).
+   */
+  eventIdentity?: string;
   failureReason?: string;
 };
 
