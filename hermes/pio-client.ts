@@ -54,6 +54,22 @@ export type RiskMemoInput = {
   model?: string;
 };
 
+export type DynamicRainInput = {
+  productId: "rain_event"; customerName: string; eventName: string; locationName: string;
+  latitude: number; longitude: number; eventStart: string; eventEnd: string;
+  desiredPayout: Money; deductible?: Money; maximumPremium?: Money;
+};
+
+export type DynamicFlightInput = {
+  productId: "flight_delay"; customerName: string; passengerName: string; airline: string;
+  flightNumber: string; originAirport: string; destinationAirport: string;
+  departureTime: string; arrivalTime: string; desiredPayout: Money; deductible?: Money; maximumPremium?: Money;
+};
+
+export type DynamicCoverageInput = DynamicRainInput | DynamicFlightInput;
+
+export type ConfirmDynamicInput = { agentId: string; quoteId: string; idempotencyKey: string; authorization: "confirm_purchase"; maximumPremium: Money };
+
 export type PioClientConfig = {
   baseUrl: string;
   agentKey?: string;
@@ -91,6 +107,16 @@ export class PioClient {
   /** Buyer scope: headless off-session charge against the agent's vaulted card. */
   async purchaseOffSession(input: OffSessionPurchaseInput) {
     return this.send("POST", "/api/agent/purchase", { body: input, key: this.requireAgentKey() });
+  }
+
+  /** Buyer scope: priced-on-demand quote. Public — no key, like requestCoverage. */
+  async requestDynamicCoverage(input: DynamicCoverageInput) {
+    return this.send("POST", "/api/agent/coverage-request", { body: { pricing: "dynamic", ...input } });
+  }
+
+  /** Buyer scope: buy a priced dynamic quote by replaying its stored premium. */
+  async confirmDynamicPurchase(input: ConfirmDynamicInput) {
+    return this.send("POST", "/api/agent/confirm-dynamic-purchase", { body: input, key: this.requireAgentKey() });
   }
 
   /** Buyer scope: read a single policy's status and ledger. */

@@ -140,4 +140,48 @@ describe("PioClient", () => {
     const client = new PioClient({ baseUrl: "https://pio-platform.vercel.app", agentKey: "k" });
     await expect(client.waitForPricingJob()).rejects.toThrow("operatorKey is required");
   });
+
+  it("requests a dynamic quote with pricing:dynamic and no auth header", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ accepted: true, quoteId: "pio-pol-rain-x", status: "quote_requested" }));
+    const client = clientWith(fetchMock as unknown as typeof fetch);
+
+    await client.requestDynamicCoverage({
+      productId: "rain_event",
+      customerName: "North Pier", eventName: "Market", locationName: "Toronto",
+      latitude: 43.6, longitude: -79.3,
+      eventStart: "2027-06-19T12:00:00-04:00", eventEnd: "2027-06-19T18:00:00-04:00",
+      desiredPayout: { amount: 500, currency: "USD" }
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://pio-platform.vercel.app/api/agent/coverage-request");
+    expect(init.method).toBe("POST");
+    expect((init.headers as Record<string, string>).authorization).toBeUndefined();
+    expect(JSON.parse(init.body as string)).toMatchObject({ pricing: "dynamic", productId: "rain_event" });
+  });
+
+  it("confirms a dynamic purchase with the agent bearer key", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ accepted: true, reasonCode: "checkout_created" }));
+    const client = clientWith(fetchMock as unknown as typeof fetch);
+
+    await client.confirmDynamicPurchase({
+      agentId: "agent_seed_demo", quoteId: "pio-pol-rain-x", idempotencyKey: "k1",
+      authorization: "confirm_purchase", maximumPremium: { amount: 200, currency: "USD" }
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://pio-platform.vercel.app/api/agent/confirm-dynamic-purchase");
+    expect(init.method).toBe("POST");
+    expect((init.headers as Record<string, string>).authorization).toBe("Bearer pio_seed_key_123");
+  });
+
+  it("throws when confirmDynamicPurchase lacks the agent key", async () => {
+    const client = new PioClient({ baseUrl: "https://pio-platform.vercel.app", operatorKey: "k" });
+    await expect(
+      client.confirmDynamicPurchase({
+        agentId: "a", quoteId: "q", idempotencyKey: "i", authorization: "confirm_purchase",
+        maximumPremium: { amount: 1, currency: "USD" }
+      })
+    ).rejects.toThrow("agentKey is required");
+  });
 });
