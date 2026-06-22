@@ -641,10 +641,10 @@ function FlightFields() {
           <button
             className="btn-ghost w-full sm:w-auto"
             type="button"
-            disabled={manualEntry}
-            onClick={() => setManualEntry(true)}
+            aria-pressed={manualEntry}
+            onClick={() => setManualEntry((current) => !current)}
           >
-            Enter manually (no api call)
+            {manualEntry ? "Lock manual entry" : "Enter manually (no api call)"}
           </button>
         </div>
         {lookupState.status === "empty" ? (
