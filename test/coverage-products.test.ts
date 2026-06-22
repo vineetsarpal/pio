@@ -66,7 +66,7 @@ describe("quoteCoverageProduct", () => {
       endpoint: "pio://demo-flight-status-api/routes/YYZ-YVR",
       status: "simulated"
     });
-    expect(quote.packet.triggerSummary).toContain("arrival delay exceeds 90 minutes");
+    expect(quote.packet.triggerSummary).toBe("Arrival delay exceeds 90 minutes.");
   });
 
   it("uses a live AeroDataBox itinerary when one matches the selected route", async () => {
@@ -110,7 +110,8 @@ describe("quoteCoverageProduct", () => {
     expect(quote.policy.deductible).toEqual({ amount: 100, currency: "USD" });
     expect(quote.policy.payout).toEqual({ amount: 300, currency: "USD" });
     expect(quote.policy.premium.amount).toBeLessThan(quoteWithoutDeductible.policy.premium.amount);
-    expect(quote.packet.coverageSummary).toContain("$400 coverage with a $100 deductible");
+    expect(quote.packet.coverageSummary).toBe("$400");
+    expect(quote.packet.deductibleSummary).toBe("$100");
   });
 
   it("rejects a deductible that is not below the coverage amount", async () => {

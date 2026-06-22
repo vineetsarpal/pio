@@ -1,5 +1,6 @@
 import type { CoverageProductId, Money, Policy, WeatherEvidence } from "./types";
 import { lookupAeroDataBoxFlights, type FlightLookupResult } from "./aerodatabox";
+import { calculatePremium } from "./premium-pricing";
 
 const USD = (amount: number): Money => ({ amount, currency: "USD" });
 
@@ -134,6 +135,7 @@ export type PolicyPacket = {
   title: string;
   insured: string;
   coverageSummary: string;
+  deductibleSummary: string;
   triggerSummary: string;
   premiumSummary: string;
   dataSources: string[];
@@ -201,7 +203,12 @@ export async function quoteCoverageProduct(
     const risk = await weather.getRainEventRisk(input);
     const deductible = input.deductible ?? USD(0);
     const payout = payoutAfterDeductible(input.desiredPayout, deductible);
-    const premium = calculatePremium(payout.amount, 0.034, risk.pricingAdjustment, eventHours(input.eventStart, input.eventEnd));
+    const premium = calculatePremium(
+      input.productId,
+      payout.amount,
+      risk.pricingAdjustment,
+      eventHours(input.eventStart, input.eventEnd)
+    );
     enforcePremiumCap(premium, input.maximumPremium);
     const policy = buildRainPolicy(input, premium, risk, deductible, payout);
     return buildQuote(input.productId, policy, risk, buildRainPacket(policy, risk), quoteExpiry(now));
@@ -212,7 +219,12 @@ export async function quoteCoverageProduct(
   const risk = await flight.getFlightDelayRisk(input);
   const deductible = input.deductible ?? USD(0);
   const payout = payoutAfterDeductible(input.desiredPayout, deductible);
-  const premium = calculatePremium(payout.amount, 0.042, risk.pricingAdjustment, flightHours(input.departureTime, input.arrivalTime));
+  const premium = calculatePremium(
+    input.productId,
+    payout.amount,
+    risk.pricingAdjustment,
+    flightHours(input.departureTime, input.arrivalTime)
+  );
   enforcePremiumCap(premium, input.maximumPremium);
   const policy = buildFlightPolicy(input, premium, risk, deductible, payout);
   return buildQuote(input.productId, policy, risk, buildFlightPacket(policy, risk, input), quoteExpiry(now));
@@ -274,6 +286,29 @@ export class OpenMeteoPricingApi implements WeatherPricingApi {
         })
       );
     }
+  }
+}
+
+export class DemoWeatherPricingApi implements WeatherPricingApi {
+  async getRainEventRisk(input: RainEventQuoteInput): Promise<RiskAssessment> {
+    const calledAt = new Date().toISOString();
+    const startedAt = Date.now();
+    const endpoint = "pio://demo-weather-pricing-api/rain-risk";
+
+    return rainRiskFromTotal(
+      fallbackRainTotal(input),
+      endpoint,
+      "demo",
+      buildApiCallTelemetry({
+        toolName: "Demo weather pricing API",
+        method: "SIMULATED",
+        endpoint,
+        status: "simulated",
+        calledAt,
+        startedAt,
+        purpose: "Use deterministic weather risk for quote-flow testing without an external API call."
+      })
+    );
   }
 }
 
@@ -507,9 +542,10 @@ function buildRainPacket(policy: Policy, risk: RiskAssessment): PolicyPacket {
     certificateId: policy.certificateId,
     title: "Parametric rain event protection packet",
     insured: policy.customerName,
-    coverageSummary: `${coverageTerms(policy)} for ${policy.eventName} at ${policy.locationName}.`,
-    triggerSummary: `Pays when normalized rainfall exceeds ${policy.trigger.threshold} mm between ${policy.trigger.window.start} and ${policy.trigger.window.end}.`,
-    premiumSummary: `$${policy.premium.amount} premium calculated from a ${risk.score}/100 weather risk score.`,
+    coverageSummary: `$${(policy.coverageAmount ?? policy.payout).amount}`,
+    deductibleSummary: `$${policy.deductible?.amount ?? 0}`,
+    triggerSummary: `Normalized rainfall exceeds ${policy.trigger.threshold} mm between ${policy.trigger.window.start} and ${policy.trigger.window.end}.`,
+    premiumSummary: `$${policy.premium.amount} premium.`,
     dataSources: [risk.sourceLabel, risk.source],
     exclusions: ["Demo coverage only", "No payout from incomplete or advisory settlement evidence without review"],
     issueCondition: "Policy packet issues after Stripe test-mode premium collection is verified by webhook."
@@ -521,19 +557,14 @@ function buildFlightPacket(policy: Policy, risk: RiskAssessment, input: FlightDe
     certificateId: policy.certificateId,
     title: "Parametric flight delay protection packet",
     insured: input.passengerName || policy.customerName,
-    coverageSummary: `${coverageTerms(policy)} for ${input.airline} ${input.flightNumber} from ${input.originAirport.toUpperCase()} to ${input.destinationAirport.toUpperCase()}.`,
-    triggerSummary: `Pays when arrival delay exceeds ${policy.trigger.threshold} minutes against the covered scheduled arrival time.`,
-    premiumSummary: `$${policy.premium.amount} premium calculated from a ${risk.score}/100 route delay risk score.`,
+    coverageSummary: `$${(policy.coverageAmount ?? policy.payout).amount}`,
+    deductibleSummary: `$${policy.deductible?.amount ?? 0}`,
+    triggerSummary: `Arrival delay exceeds ${policy.trigger.threshold} minutes.`,
+    premiumSummary: `$${policy.premium.amount} premium.`,
     dataSources: [risk.sourceLabel, risk.source],
     exclusions: ["Demo coverage only", "Cancellations, diversions, and missed connections require separate coverage wording"],
     issueCondition: "Policy packet issues after Stripe test-mode premium collection is verified by webhook."
   };
-}
-
-function calculatePremium(payout: number, baseRate: number, riskAdjustment: number, durationHours: number): Money {
-  const durationAdjustment = Math.min(durationHours, 12) * 0.0025;
-  const raw = payout * (baseRate + riskAdjustment + durationAdjustment);
-  return USD(Math.max(12, Math.round(raw)));
 }
 
 function payoutAfterDeductible(coverageAmount: Money, deductible: Money): Money {
@@ -545,13 +576,6 @@ function payoutAfterDeductible(coverageAmount: Money, deductible: Money): Money 
     throw new Error("deductible must be less than the coverage amount.");
   }
   return USD(coverageAmount.amount - deductible.amount);
-}
-
-function coverageTerms(policy: Policy): string {
-  const coverageAmount = policy.coverageAmount ?? policy.payout;
-  const deductible = policy.deductible ?? USD(0);
-  const deductibleTerms = deductible.amount > 0 ? `a $${deductible.amount} deductible` : "no deductible";
-  return `$${coverageAmount.amount} coverage with ${deductibleTerms} and a $${policy.payout.amount} fixed payout`;
 }
 
 function enforcePremiumCap(premium: Money, maximumPremium?: Money): void {

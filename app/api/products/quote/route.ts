@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import type { ProductQuoteInput } from "@/lib/coverage-products";
-import { CoverageQuoteValidationError, quoteCoverageProduct } from "@/lib/coverage-products";
+import {
+  CoverageQuoteValidationError,
+  DemoFlightStatusPricingApi,
+  DemoWeatherPricingApi,
+  quoteCoverageProduct
+} from "@/lib/coverage-products";
 import { parseJsonBody, productQuoteInputSchema } from "@/lib/http-schemas";
 
 export async function POST(request: Request) {
@@ -13,7 +18,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    const quote = await quoteCoverageProduct(parsed.data as ProductQuoteInput);
+    const demoPricing = new URL(request.url).searchParams.get("pricing") === "demo";
+    const quote = await quoteCoverageProduct(
+      parsed.data as ProductQuoteInput,
+      demoPricing
+        ? {
+            weather: new DemoWeatherPricingApi(),
+            flight: new DemoFlightStatusPricingApi()
+          }
+        : undefined
+    );
     return NextResponse.json({
       accepted: true,
       reasonCode: "product_quote_ready",

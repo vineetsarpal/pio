@@ -74,6 +74,41 @@ describe("POST /api/products/quote", () => {
     });
   });
 
+  it("uses deterministic demo pricing without an external API call", async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const response = await POST(
+      new Request("https://pio.test/api/products/quote?pricing=demo", {
+        method: "POST",
+        body: JSON.stringify({
+          productId: "rain_event",
+          customerName: "North Pier Pop-up Market",
+          eventName: "Saturday Harbor Market",
+          locationName: "Toronto Waterfront",
+          latitude: 43.6405,
+          longitude: -79.3764,
+          eventStart: "2027-06-19T11:00:00-04:00",
+          eventEnd: "2027-06-19T12:00:00-04:00",
+          desiredPayout: { amount: 500, currency: "USD" }
+        })
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({
+      accepted: true,
+      quote: {
+        risk: {
+          sourceLabel: "Demo weather pricing API",
+          apiStatus: "demo",
+          apiCall: { method: "SIMULATED", status: "simulated" }
+        }
+      }
+    });
+  });
+
   it("returns the granular reason code for a validation failure", async () => {
     const response = await POST(
       new Request("https://pio.test/api/products/quote", {
