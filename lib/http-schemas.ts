@@ -75,7 +75,7 @@ export const dynamicCoverageRequestSchema = z.intersection(
 );
 
 export const riskMemoSchema = z.object({
-  riskScore: z.number(),
+  riskScore: z.number().min(0).max(1),
   evidence: z.array(z.object({
     url: z.string().min(1),
     title: z.string().min(1),

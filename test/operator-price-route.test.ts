@@ -74,4 +74,15 @@ describe("POST /api/operator/quote/[quoteId]/price", () => {
     expect(body.policy.pricedBy).toBe("operator_research");
     expect(body.policy.status).toBe("policy_quoted");
   });
+
+  it("returns 409 for an already-priced job", async () => {
+    const store = hoisted.storeRef.current as InMemoryPolicyStore;
+    const { quoteId } = await seedJob(store);
+    // Price it once successfully
+    await price(priceRequest(quoteId), { params: Promise.resolve({ quoteId }) });
+    // Attempt to price again — should be 409
+    const response = await price(priceRequest(quoteId), { params: Promise.resolve({ quoteId }) });
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ reasonCode: "already_priced" });
+  });
 });

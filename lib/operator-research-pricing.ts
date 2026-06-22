@@ -59,7 +59,7 @@ export async function createDynamicPricingJob(
 
 export async function pricePricingJob(
   { quoteId, memo, now }: { quoteId: string; memo: RiskMemo; now: string },
-  { store }: { store: PolicyStore }
+  { store, adapters }: { store: PolicyStore; adapters?: ProductRiskAdapters }
 ): Promise<{ accepted: true; policy: Policy } | { accepted: false; reasonCode: "job_not_found" | "already_priced" }> {
   const job = await store.getPricingJob(quoteId);
   if (!job) return { accepted: false, reasonCode: "job_not_found" };
@@ -72,7 +72,7 @@ export async function pricePricingJob(
     : undefined;
   const quote = await quoteCoverageProduct(
     job.productInput,
-    assessment ? researchRiskAdapters(assessment) : undefined,
+    assessment ? researchRiskAdapters(assessment) : adapters,
     { now: new Date(now) }
   );
 

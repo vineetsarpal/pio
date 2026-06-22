@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { riskAssessmentFromMemo, researchRiskAdapters, createDynamicPricingJob } from "../lib/operator-research-pricing";
 import { InMemoryPolicyStore } from "../lib/policy-store";
-import { CoverageQuoteValidationError } from "../lib/coverage-products";
+import { CoverageQuoteValidationError, DemoWeatherPricingApi, DemoFlightStatusPricingApi } from "../lib/coverage-products";
 import { adjustmentFromScore } from "../lib/premium-pricing";
 
 const memo = {
@@ -80,7 +80,7 @@ it("fails closed to the deterministic adapter when evidence is empty", async () 
   const { quoteId } = await seedJob(store);
   const res = await pricePricingJob({ quoteId, now: "2026-06-22T00:01:00Z", memo: {
     riskScore: 0.9, evidence: [], toolName: "Firecrawl search"
-  } }, { store });
+  } }, { store, adapters: { weather: new DemoWeatherPricingApi(), flight: new DemoFlightStatusPricingApi() } });
   expect(res.accepted).toBe(true);
   expect((await store.getPolicy(quoteId))?.pricedBy).toBe("deterministic_fallback");
 });
@@ -89,4 +89,12 @@ it("rejects an unknown or already-priced job", async () => {
   const store = new InMemoryPolicyStore();
   const missing = await pricePricingJob({ quoteId: "nope", now: "2026-06-22T00:01:00Z", memo: { riskScore: 0.5, evidence: [], toolName: "t" } }, { store });
   expect(missing).toEqual({ accepted: false, reasonCode: "job_not_found" });
+
+  // already_priced: price once, then attempt a second price on the same quoteId
+  const { quoteId } = await seedJob(store);
+  const demoAdapters = { weather: new DemoWeatherPricingApi(), flight: new DemoFlightStatusPricingApi() };
+  const first = await pricePricingJob({ quoteId, now: "2026-06-22T00:01:00Z", memo: { riskScore: 0.5, evidence: [], toolName: "t" } }, { store, adapters: demoAdapters });
+  expect(first.accepted).toBe(true);
+  const second = await pricePricingJob({ quoteId, now: "2026-06-22T00:02:00Z", memo: { riskScore: 0.5, evidence: [], toolName: "t" } }, { store, adapters: demoAdapters });
+  expect(second).toEqual({ accepted: false, reasonCode: "already_priced" });
 });
