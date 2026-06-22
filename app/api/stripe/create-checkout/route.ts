@@ -6,9 +6,17 @@ import type { ProductQuoteInput } from "@/lib/coverage-products";
 import { quoteCoverageProduct } from "@/lib/coverage-products";
 import { getPolicyStore } from "@/lib/policy-store-factory";
 import { workflowEvent } from "@/lib/policy-store";
+import { checkoutRequestSchema, parseJsonBody } from "@/lib/http-schemas";
 
 export async function POST(request: Request) {
-  const checkoutRequest = (await request.json()) as CoverageRequest | ProductQuoteInput;
+  const parsed = await parseJsonBody(request, checkoutRequestSchema);
+  if (!parsed.ok) {
+    return NextResponse.json(
+      { accepted: false, reasonCode: "invalid_request", demoMode: true, message: parsed.message },
+      { status: 400 }
+    );
+  }
+  const checkoutRequest = parsed.data as CoverageRequest | ProductQuoteInput;
 
   try {
     let productQuote: Awaited<ReturnType<typeof quoteCoverageProduct>> | undefined;

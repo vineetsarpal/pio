@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 import type { ProductQuoteInput } from "@/lib/coverage-products";
 import { CoverageQuoteValidationError, quoteCoverageProduct } from "@/lib/coverage-products";
+import { parseJsonBody, productQuoteInputSchema } from "@/lib/http-schemas";
 
 export async function POST(request: Request) {
-  const input = (await request.json()) as ProductQuoteInput;
+  const parsed = await parseJsonBody(request, productQuoteInputSchema);
+  if (!parsed.ok) {
+    return NextResponse.json(
+      { accepted: false, reasonCode: "invalid_request", message: parsed.message },
+      { status: 400 }
+    );
+  }
 
   try {
-    const quote = await quoteCoverageProduct(input);
+    const quote = await quoteCoverageProduct(parsed.data as ProductQuoteInput);
     return NextResponse.json({
       accepted: true,
       reasonCode: "product_quote_ready",

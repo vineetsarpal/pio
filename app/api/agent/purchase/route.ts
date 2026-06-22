@@ -3,7 +3,7 @@ import { authenticateSeededAgent } from "@/lib/agent-seed";
 import { handleAgentOffSessionPurchase } from "@/lib/agent-purchase";
 import { getPolicyStore } from "@/lib/policy-store-factory";
 import { createLiveStripePaymentIntentAdapterFromEnv } from "@/lib/stripe-payment-intent";
-import type { CoverageRequest } from "@/lib/types";
+import { agentOffSessionPurchaseBodySchema, parseJsonBody } from "@/lib/http-schemas";
 
 /**
  * Headless off-session purchase entrypoint. An authorized agent presents its
@@ -32,22 +32,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = (await request.json()) as {
-    idempotencyKey?: unknown;
-    coverageRequest?: CoverageRequest;
-  };
-  if (typeof body.idempotencyKey !== "string" || !body.idempotencyKey) {
+  const parsed = await parseJsonBody(request, agentOffSessionPurchaseBodySchema);
+  if (!parsed.ok) {
     return NextResponse.json(
-      { accepted: false, reasonCode: "invalid_request", message: "idempotencyKey is required." },
+      { accepted: false, reasonCode: "invalid_request", message: parsed.message },
       { status: 400 }
     );
   }
-  if (!body.coverageRequest || typeof body.coverageRequest !== "object") {
-    return NextResponse.json(
-      { accepted: false, reasonCode: "invalid_request", message: "coverageRequest is required." },
-      { status: 400 }
-    );
-  }
+  const body = parsed.data;
 
   let payments;
   try {
