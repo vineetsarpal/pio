@@ -276,4 +276,16 @@ export class PostgresPolicyStore implements PolicyStore {
       .orderBy(desc(policies.updatedAt));
     return rows.map((row) => row.data);
   }
+
+  // Scaffolding stubs for Task 5 (Postgres PricingJob schema + migration).
+  // These satisfy the PolicyStore interface until the real implementation lands.
+  async savePricingJob(): Promise<void> {
+    throw new Error("savePricingJob not implemented until Task 5");
+  }
+  async getPricingJob(): Promise<undefined> {
+    throw new Error("getPricingJob not implemented until Task 5");
+  }
+  async listPendingPricingJobs(): Promise<never[]> {
+    throw new Error("listPendingPricingJobs not implemented until Task 5");
+  }
 }
