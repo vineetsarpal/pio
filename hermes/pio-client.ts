@@ -46,6 +46,14 @@ export type OffSessionPurchaseInput = {
   coverageRequest: CoverageRequestInput;
 };
 
+export type RiskMemoInput = {
+  riskScore: number;
+  evidence: Array<{ url: string; title: string; snippet: string; retrievedAt: string }>;
+  factors?: string[];
+  toolName: string;
+  model?: string;
+};
+
 export type PioClientConfig = {
   baseUrl: string;
   agentKey?: string;
@@ -100,6 +108,20 @@ export class PioClient {
   /** Operator scope: the ledger-derived review queue (exceptions needing attention). */
   async getReviewQueue() {
     return this.send("GET", "/api/operator/review-queue", { key: this.requireOperatorKey() });
+  }
+
+  /** Operator scope: long-poll for the next pending pricing job(s). */
+  async waitForPricingJob(since?: string) {
+    const query = since ? `?since=${encodeURIComponent(since)}` : "";
+    return this.send("GET", `/api/operator/pricing-queue/wait${query}`, { key: this.requireOperatorKey() });
+  }
+
+  /** Operator scope: submit a grounded risk memo; PIO clamps the score into the band. */
+  async submitResearchQuote(quoteId: string, memo: RiskMemoInput) {
+    return this.send("POST", `/api/operator/quote/${encodeURIComponent(quoteId)}/price`, {
+      body: memo,
+      key: this.requireOperatorKey()
+    });
   }
 
   private requireAgentKey(): string {

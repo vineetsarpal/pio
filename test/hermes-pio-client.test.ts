@@ -95,4 +95,49 @@ describe("PioClient", () => {
     const client = new PioClient({ baseUrl: "https://pio-platform.vercel.app", agentKey: "k" });
     await expect(client.settlePolicy("p1")).rejects.toThrow("operatorKey is required");
   });
+
+  it("waits for a pricing job with the operator key and forwards the since cursor", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ accepted: true, jobs: [] }));
+    const client = clientWith(fetchMock as unknown as typeof fetch);
+
+    await client.waitForPricingJob("2026-06-22T00:00:00Z");
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      "https://pio-platform.vercel.app/api/operator/pricing-queue/wait?since=2026-06-22T00%3A00%3A00Z"
+    );
+    expect(init.method ?? "GET").toBe("GET");
+    expect((init.headers as Record<string, string>).authorization).toBe("Bearer pio_operator_key_123");
+  });
+
+  it("waits without a since cursor when none is given", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ accepted: true, jobs: [] }));
+    const client = clientWith(fetchMock as unknown as typeof fetch);
+    await client.waitForPricingJob();
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://pio-platform.vercel.app/api/operator/pricing-queue/wait");
+  });
+
+  it("submits a research memo to the price endpoint with the operator key", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ accepted: true, policy: { id: "pio-pol-rain-x" } }));
+    const client = clientWith(fetchMock as unknown as typeof fetch);
+
+    const memo = {
+      riskScore: 0.6,
+      evidence: [{ url: "https://x.test", title: "T", snippet: "s", retrievedAt: "2026-06-22T00:00:00Z" }],
+      toolName: "Firecrawl"
+    };
+    await client.submitResearchQuote("pio-pol-rain-x", memo);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://pio-platform.vercel.app/api/operator/quote/pio-pol-rain-x/price");
+    expect(init.method).toBe("POST");
+    expect((init.headers as Record<string, string>).authorization).toBe("Bearer pio_operator_key_123");
+    expect(JSON.parse(init.body as string)).toMatchObject({ riskScore: 0.6, toolName: "Firecrawl" });
+  });
+
+  it("throws when waitForPricingJob lacks the operator key", async () => {
+    const client = new PioClient({ baseUrl: "https://pio-platform.vercel.app", agentKey: "k" });
+    await expect(client.waitForPricingJob()).rejects.toThrow("operatorKey is required");
+  });
 });
