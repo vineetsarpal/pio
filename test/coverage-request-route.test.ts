@@ -69,7 +69,7 @@ describe("POST /api/agent/coverage-request (dynamic branch)", () => {
     expect(response.status).toBe(400);
     const body = await response.json();
     expect(body.accepted).toBe(false);
-    expect(typeof body.reasonCode).toBe("string");
+    expect(body.reasonCode).toBe("invalid_dates");
   });
 
   it("returns 400 for dynamic request with missing required field", async () => {

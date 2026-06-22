@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { riskAssessmentFromMemo, researchRiskAdapters, createDynamicPricingJob } from "../lib/operator-research-pricing";
 import { InMemoryPolicyStore } from "../lib/policy-store";
+import { CoverageQuoteValidationError } from "../lib/coverage-products";
 import { adjustmentFromScore } from "../lib/premium-pricing";
 
 const memo = {
@@ -47,5 +48,5 @@ it("createDynamicPricingJob rejects an invalid window", async () => {
   const input = { productId: "rain_event", customerName: "C", eventName: "E", locationName: "L",
     latitude: 1, longitude: 2, eventStart: "2020-01-01T06:00:00Z", eventEnd: "2020-01-01T00:00:00Z",
     desiredPayout: { amount: 500, currency: "USD" } } as never;
-  await expect(createDynamicPricingJob(input, { store, now: "2026-06-22T00:00:00Z" })).rejects.toThrow();
+  await expect(createDynamicPricingJob(input, { store, now: "2026-06-22T00:00:00Z" })).rejects.toThrow(CoverageQuoteValidationError);
 });
