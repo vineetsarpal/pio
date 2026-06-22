@@ -3,6 +3,7 @@ import { AgentPurchaseConfirmationStore, handleDynamicPurchaseConfirmation } fro
 import { authenticateSeededAgent } from "@/lib/agent-seed";
 import { createLiveStripeCheckoutAdapterFromEnv } from "@/lib/stripe-checkout";
 import { getPolicyStore } from "@/lib/policy-store-factory";
+import { confirmDynamicPurchaseSchema, parseJsonBody } from "@/lib/http-schemas";
 
 const confirmations = new AgentPurchaseConfirmationStore();
 
@@ -47,6 +48,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await handleDynamicPurchaseConfirmation(await request.json(), { store: getPolicyStore(), payments, confirmations });
+  const parsed = await parseJsonBody(request, confirmDynamicPurchaseSchema);
+  if (!parsed.ok) {
+    return NextResponse.json(
+      { accepted: false, reasonCode: "invalid_request", message: parsed.message },
+      { status: 400 }
+    );
+  }
+
+  const result = await handleDynamicPurchaseConfirmation(parsed.data, { store: getPolicyStore(), payments, confirmations });
   return NextResponse.json(result, { status: result.accepted ? 200 : 422 });
 }

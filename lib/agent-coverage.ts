@@ -342,6 +342,9 @@ export async function handleDynamicPurchaseConfirmation(
   if (!policy || policy.pricingMode !== "dynamic" || policy.status !== "policy_quoted") {
     return { accepted: false, reasonCode: "quote_not_priced", agentId: agentId as string, quoteId: quoteId as string, idempotencyKey: idempotencyKey as string, message: `Quote ${quoteId} has no priced dynamic policy ready to purchase.` };
   }
+  if (policy.premium.currency !== cap.currency) {
+    return { accepted: false, reasonCode: "invalid_request", agentId: agentId as string, quoteId: quoteId as string, idempotencyKey: idempotencyKey as string, message: "Premium and maximumPremium must use the same currency." };
+  }
   if (policy.premium.amount > cap.amount) {
     return { accepted: false, reasonCode: "premium_cap_exceeded", agentId: agentId as string, quoteId: quoteId as string, idempotencyKey: idempotencyKey as string,
       message: `Quoted premium ${formatMoney(policy.premium)} exceeds maximum premium ${formatMoney(cap)}.`, constraints: { maximumPremium: cap, quotedPremium: policy.premium } };

@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { handleDynamicPurchaseConfirmation, AgentPurchaseConfirmationStore } from "@/lib/agent-coverage";
 import { InMemoryPolicyStore } from "@/lib/policy-store";
 import { createDynamicPricingJob, pricePricingJob } from "@/lib/operator-research-pricing";
 import { DemoWeatherPricingApi } from "@/lib/coverage-products";
 import { SimulatedHermesStripeSkillsAdapter } from "./fakes";
+import { POST as confirmDynamicPurchase } from "../app/api/agent/confirm-dynamic-purchase/route";
 
 const NOW = "2026-06-22T00:00:00Z";
 const FUTURE_START = "2030-01-01T00:00:00Z";
@@ -37,6 +38,79 @@ async function seedPricedPolicy(store: InMemoryPolicyStore): Promise<string> {
   return quoteId;
 }
 
+const routeEnv = {
+  STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+  NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+  PIO_AGENT_SEED_KEY: process.env.PIO_AGENT_SEED_KEY,
+  PIO_SEED_STRIPE_CUSTOMER: process.env.PIO_SEED_STRIPE_CUSTOMER,
+  PIO_SEED_STRIPE_PAYMENT_METHOD: process.env.PIO_SEED_STRIPE_PAYMENT_METHOD
+};
+
+beforeEach(() => {
+  process.env.STRIPE_SECRET_KEY = "sk_test_demo";
+  process.env.NEXT_PUBLIC_APP_URL = "https://pio.test";
+  process.env.PIO_AGENT_SEED_KEY = "pio_seed_key_123";
+  process.env.PIO_SEED_STRIPE_CUSTOMER = "cus_test_seed";
+  process.env.PIO_SEED_STRIPE_PAYMENT_METHOD = "pm_card_visa";
+});
+
+afterEach(() => {
+  for (const [key, value] of Object.entries(routeEnv)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+});
+
+describe("confirm-dynamic-purchase route", () => {
+  it("returns 400 with invalid_request when body is malformed (missing quoteId)", async () => {
+    const request = new Request("https://pio.test/api/agent/confirm-dynamic-purchase", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer pio_seed_key_123"
+      },
+      body: JSON.stringify({
+        agentId: "agent-test-route",
+        // quoteId intentionally omitted
+        idempotencyKey: "idem-route-bad-1",
+        authorization: "confirm_purchase",
+        maximumPremium: { amount: 100, currency: "USD" }
+      })
+    });
+
+    const response = await confirmDynamicPurchase(request);
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      accepted: false,
+      reasonCode: "invalid_request"
+    });
+  });
+
+  it("returns 400 with invalid_request when maximumPremium currency is non-USD", async () => {
+    const request = new Request("https://pio.test/api/agent/confirm-dynamic-purchase", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer pio_seed_key_123"
+      },
+      body: JSON.stringify({
+        agentId: "agent-test-route",
+        quoteId: "some-quote-id",
+        idempotencyKey: "idem-route-bad-2",
+        authorization: "confirm_purchase",
+        maximumPremium: { amount: 100, currency: "EUR" }
+      })
+    });
+
+    const response = await confirmDynamicPurchase(request);
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      accepted: false,
+      reasonCode: "invalid_request"
+    });
+  });
+});
+
 describe("handleDynamicPurchaseConfirmation", () => {
   it("accepts a confirmation when maximumPremium >= stored premium", async () => {
     const store = new InMemoryPolicyStore();
@@ -69,6 +143,8 @@ describe("handleDynamicPurchaseConfirmation", () => {
     const quoteId = await seedPricedPolicy(store);
     const storedPolicy = await store.getPolicy(quoteId);
     if (!storedPolicy) throw new Error("Expected stored policy");
+
+    expect(storedPolicy.premium.amount).toBeGreaterThan(0);
 
     const payments = new SimulatedHermesStripeSkillsAdapter();
     const result = await handleDynamicPurchaseConfirmation(
