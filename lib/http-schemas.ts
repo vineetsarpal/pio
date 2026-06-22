@@ -74,6 +74,19 @@ export const dynamicCoverageRequestSchema = z.intersection(
   z.object({ pricing: z.literal("dynamic") })
 );
 
+export const riskMemoSchema = z.object({
+  riskScore: z.number(),
+  evidence: z.array(z.object({
+    url: z.string().min(1),
+    title: z.string().min(1),
+    snippet: z.string().min(1),
+    retrievedAt: z.string().min(1)
+  })),
+  factors: z.array(z.string()).optional(),
+  toolName: z.string().min(1),
+  model: z.string().optional()
+});
+
 export const agentOffSessionPurchaseBodySchema = z.object({
   idempotencyKey: z.string().min(1),
   coverageRequest: coverageRequestSchema
