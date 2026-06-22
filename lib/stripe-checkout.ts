@@ -18,7 +18,16 @@ type StripeCheckoutResponse = {
   };
 };
 
-export class LiveStripeCheckoutAdapter implements Pick<PaymentAdapter, "mode" | "createCheckout"> {
+type StripeCustomerResponse = {
+  id?: string;
+  error?: {
+    message?: string;
+  };
+};
+
+export class LiveStripeCheckoutAdapter
+  implements Pick<PaymentAdapter, "mode" | "createCustomer" | "createCheckout">
+{
   readonly mode: PaymentMode = "stripe_test_mode";
   private readonly secretKey: string;
   private readonly appUrl: string;
@@ -33,6 +42,30 @@ export class LiveStripeCheckoutAdapter implements Pick<PaymentAdapter, "mode" | 
 
     this.secretKey = config.secretKey;
     this.appUrl = config.appUrl.replace(/\/$/, "");
+  }
+
+  async createCustomer(name: string): Promise<PaymentCustomer> {
+    const body = new URLSearchParams();
+    body.set("name", name);
+    body.set("metadata[demo_mode]", "hackathon_not_real_insurance");
+
+    const response = await fetch("https://api.stripe.com/v1/customers", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.secretKey}`,
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body
+    });
+
+    const payload = (await response.json()) as StripeCustomerResponse;
+    if (!response.ok || !payload.id) {
+      throw new Error(
+        `Stripe customer creation failed: ${payload.error?.message ?? `HTTP ${response.status}`}`
+      );
+    }
+
+    return { id: payload.id, name };
   }
 
   async createCheckout(

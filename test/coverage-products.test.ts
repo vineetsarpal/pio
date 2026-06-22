@@ -28,8 +28,8 @@ const flightRequest = {
   flightNumber: "AC101",
   originAirport: "YYZ",
   destinationAirport: "YVR",
-  departureTime: "2026-06-21T17:15:00-04:00",
-  arrivalTime: "2026-06-21T19:30:00-07:00",
+  departureTime: "2027-06-21T17:15:00-04:00",
+  arrivalTime: "2027-06-21T19:30:00-07:00",
   desiredPayout: { amount: 400, currency: "USD" as const },
   maximumPremium: { amount: 100, currency: "USD" as const }
 };

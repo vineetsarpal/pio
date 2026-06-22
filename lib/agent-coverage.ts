@@ -99,7 +99,7 @@ export async function handleAgentPurchaseConfirmation(
     payments = new SimulatedHermesStripeSkillsAdapter(),
     confirmations = new AgentPurchaseConfirmationStore()
   }: {
-    payments?: PaymentAdapter;
+    payments?: Pick<PaymentAdapter, "mode" | "createCustomer" | "createCheckout">;
     confirmations?: AgentPurchaseConfirmationStore;
   } = {}
 ): Promise<AgentPurchaseConfirmationResponse> {
