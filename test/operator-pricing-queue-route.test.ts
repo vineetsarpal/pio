@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const hoisted = vi.hoisted(() => ({ storeRef: {} as { current?: unknown } }));
 vi.mock("../lib/policy-store-factory", () => ({
@@ -48,7 +48,16 @@ beforeEach(() => {
   hoisted.storeRef.current = store;
 });
 
+// afterEach restores fast test-time values so no later test in this file can
+// accidentally inherit the 25s production default.
 afterEach(() => {
+  process.env.PIO_OPERATOR_KEY = "op-key";
+  process.env.PIO_PRICING_QUEUE_HOLD_MS = "50";
+  process.env.PIO_PRICING_QUEUE_POLL_MS = "10";
+});
+
+// afterAll restores whatever was in the real environment before this file ran.
+afterAll(() => {
   if (originalKey === undefined) delete process.env.PIO_OPERATOR_KEY;
   else process.env.PIO_OPERATOR_KEY = originalKey;
   if (originalHold === undefined) delete process.env.PIO_PRICING_QUEUE_HOLD_MS;
@@ -102,6 +111,15 @@ describe("GET /api/operator/pricing-queue", () => {
 });
 
 describe("GET /api/operator/pricing-queue/wait", () => {
+  it("returns 401 for missing bearer key", async () => {
+    const response = await waitGet(
+      pricingRequest(null, "https://pio.test/api/operator/pricing-queue/wait")
+    );
+    expect(response.status).toBe(401);
+    const body = await response.json();
+    expect(body.reasonCode).toBe("unauthorized");
+  });
+
   it("returns 401 for wrong bearer key", async () => {
     const response = await waitGet(
       pricingRequest("bad-key", "https://pio.test/api/operator/pricing-queue/wait")
@@ -122,7 +140,7 @@ describe("GET /api/operator/pricing-queue/wait", () => {
     expect(body.accepted).toBe(true);
     expect(body.jobs).toHaveLength(0);
     // Should return within ~200ms (hold is 50ms, with some slack)
-    expect(elapsed).toBeLessThan(500);
+    expect(elapsed).toBeLessThan(300);
   });
 
   it("returns job promptly when one exists", async () => {
