@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPolicyStore } from "@/lib/policy-store-factory";
-import { operatorOk, unauthorized } from "../route";
+import { operatorOk, unauthorized } from "@/lib/operator-http";
 
 export async function GET(request: Request) {
   if (!operatorOk(request)) return unauthorized();
