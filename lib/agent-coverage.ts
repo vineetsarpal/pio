@@ -6,8 +6,8 @@ import type {
   Money
 } from "./types";
 import type { PaymentAdapter } from "./payment-adapter";
-import { SimulatedHermesStripeSkillsAdapter } from "./payment-adapter";
 import { quotePolicy } from "./workflow";
+import type { PolicyStore } from "./policy-store";
 
 type IdempotencyRecord = {
   fingerprint: string;
@@ -99,12 +99,12 @@ export function handleAgentCoverageRequest(input: unknown): AgentCoverageRespons
 export async function handleAgentPurchaseConfirmation(
   input: unknown,
   {
-    payments = new SimulatedHermesStripeSkillsAdapter(),
+    payments,
     confirmations = new AgentPurchaseConfirmationStore()
   }: {
-    payments?: Pick<PaymentAdapter, "mode" | "createCustomer" | "createCheckout">;
+    payments: Pick<PaymentAdapter, "mode" | "createCustomer" | "createCheckout">;
     confirmations?: AgentPurchaseConfirmationStore;
-  } = {}
+  }
 ): Promise<AgentPurchaseConfirmationResponse> {
   const parsed = parseAgentPurchaseConfirmationRequest(input);
   if (!parsed.ok) {
@@ -317,6 +317,56 @@ function parseCoverageRequest(input: Record<string, unknown>):
       desiredPayout
     }
   };
+}
+
+export async function handleDynamicPurchaseConfirmation(
+  input: unknown,
+  { store, payments, confirmations = new AgentPurchaseConfirmationStore() }: {
+    store: PolicyStore;
+    payments: Pick<PaymentAdapter, "mode" | "createCustomer" | "createCheckout">;
+    confirmations?: AgentPurchaseConfirmationStore;
+  }
+): Promise<AgentPurchaseConfirmationResponse> {
+  if (!isRecord(input)) return { accepted: false, reasonCode: "invalid_request", message: "Request body must be a JSON object." };
+  const { agentId, quoteId, idempotencyKey, authorization, maximumPremium } = input as Record<string, unknown>;
+  if ([agentId, quoteId, idempotencyKey].some((v) => typeof v !== "string" || v.length === 0)) {
+    return { accepted: false, reasonCode: "invalid_request", message: "agentId, quoteId, idempotencyKey are required." };
+  }
+  if (authorization !== "confirm_purchase") {
+    return { accepted: false, reasonCode: "authorization_required", agentId: agentId as string, quoteId: quoteId as string, idempotencyKey: idempotencyKey as string, message: "Requires authorization: confirm_purchase." };
+  }
+  const cap = parseMoney(maximumPremium);
+  if (!cap) return { accepted: false, reasonCode: "invalid_request", message: "maximumPremium must include amount and currency." };
+
+  const policy = await store.getPolicy(quoteId as string);
+  if (!policy || policy.pricingMode !== "dynamic" || policy.status !== "policy_quoted") {
+    return { accepted: false, reasonCode: "quote_not_priced", agentId: agentId as string, quoteId: quoteId as string, idempotencyKey: idempotencyKey as string, message: `Quote ${quoteId} has no priced dynamic policy ready to purchase.` };
+  }
+  if (policy.premium.currency !== cap.currency) {
+    return { accepted: false, reasonCode: "invalid_request", agentId: agentId as string, quoteId: quoteId as string, idempotencyKey: idempotencyKey as string, message: "Premium and maximumPremium must use the same currency." };
+  }
+  if (policy.premium.amount > cap.amount) {
+    return { accepted: false, reasonCode: "premium_cap_exceeded", agentId: agentId as string, quoteId: quoteId as string, idempotencyKey: idempotencyKey as string,
+      message: `Quoted premium ${formatMoney(policy.premium)} exceeds maximum premium ${formatMoney(cap)}.`, constraints: { maximumPremium: cap, quotedPremium: policy.premium } };
+  }
+
+  const fingerprint = stableStringify({ agentId, quoteId, authorization, maximumPremium: cap });
+  const existing = confirmations.get(idempotencyKey as string);
+  if (existing) {
+    if (existing.fingerprint !== fingerprint) {
+      return { accepted: false, reasonCode: "idempotency_conflict", agentId: agentId as string, quoteId: quoteId as string, idempotencyKey: idempotencyKey as string, message: "Idempotency key reused with different details." };
+    }
+    return { ...existing.response, idempotentReplay: true };
+  }
+
+  const customer = await payments.createCustomer(policy.customerName);
+  const checkout = await payments.createCheckout(policy, customer);
+  const response: Extract<AgentPurchaseConfirmationResponse, { accepted: true }> = {
+    accepted: true, reasonCode: "checkout_created", agentId: agentId as string, quoteId: quoteId as string,
+    idempotencyKey: idempotencyKey as string, idempotentReplay: false, policy, checkout, nextAction: "complete_stripe_checkout"
+  };
+  confirmations.set(idempotencyKey as string, { fingerprint, response });
+  return response;
 }
 
 function parseMoney(value: unknown): Money | undefined {

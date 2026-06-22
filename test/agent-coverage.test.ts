@@ -5,6 +5,9 @@ import {
   handleAgentCoverageRequest,
   handleAgentPurchaseConfirmation
 } from "@/lib/agent-coverage";
+import { SimulatedHermesStripeSkillsAdapter } from "./fakes";
+
+const payments = new SimulatedHermesStripeSkillsAdapter();
 
 const agentRequest = {
   ...demoCoverageRequest,
@@ -77,17 +80,20 @@ describe("agent coverage API contract", () => {
   });
 
   it("creates checkout only after explicit agent purchase confirmation", async () => {
-    const result = await handleAgentPurchaseConfirmation({
-      agentId: "ops-agent-north-pier",
-      quoteId: "pio-pol-2026-0001",
-      idempotencyKey: "idem-agent-buy-0001",
-      authorization: "confirm_purchase",
-      coverageRequest: demoCoverageRequest,
-      maximumPremium: {
-        amount: 75,
-        currency: "USD"
-      }
-    });
+    const result = await handleAgentPurchaseConfirmation(
+      {
+        agentId: "ops-agent-north-pier",
+        quoteId: "pio-pol-2026-0001",
+        idempotencyKey: "idem-agent-buy-0001",
+        authorization: "confirm_purchase",
+        coverageRequest: demoCoverageRequest,
+        maximumPremium: {
+          amount: 75,
+          currency: "USD"
+        }
+      },
+      { payments }
+    );
 
     expect(result.accepted).toBe(true);
     if (!result.accepted) throw new Error("Expected checkout confirmation.");
@@ -111,8 +117,8 @@ describe("agent coverage API contract", () => {
       }
     };
 
-    const first = await handleAgentPurchaseConfirmation(request, { confirmations });
-    const second = await handleAgentPurchaseConfirmation(request, { confirmations });
+    const first = await handleAgentPurchaseConfirmation(request, { payments, confirmations });
+    const second = await handleAgentPurchaseConfirmation(request, { payments, confirmations });
 
     expect(first.accepted).toBe(true);
     expect(second.accepted).toBe(true);
@@ -136,7 +142,7 @@ describe("agent coverage API contract", () => {
       }
     };
 
-    await handleAgentPurchaseConfirmation(request, { confirmations });
+    await handleAgentPurchaseConfirmation(request, { payments, confirmations });
     const conflict = await handleAgentPurchaseConfirmation(
       {
         ...request,
@@ -145,7 +151,7 @@ describe("agent coverage API contract", () => {
           currency: "USD"
         }
       },
-      { confirmations }
+      { payments, confirmations }
     );
 
     expect(conflict.accepted).toBe(false);
@@ -154,17 +160,20 @@ describe("agent coverage API contract", () => {
   });
 
   it("re-checks premium cap during purchase confirmation", async () => {
-    const result = await handleAgentPurchaseConfirmation({
-      agentId: "ops-agent-north-pier",
-      quoteId: "pio-pol-2026-0001",
-      idempotencyKey: "idem-agent-buy-0004",
-      authorization: "confirm_purchase",
-      coverageRequest: demoCoverageRequest,
-      maximumPremium: {
-        amount: 10,
-        currency: "USD"
-      }
-    });
+    const result = await handleAgentPurchaseConfirmation(
+      {
+        agentId: "ops-agent-north-pier",
+        quoteId: "pio-pol-2026-0001",
+        idempotencyKey: "idem-agent-buy-0004",
+        authorization: "confirm_purchase",
+        coverageRequest: demoCoverageRequest,
+        maximumPremium: {
+          amount: 10,
+          currency: "USD"
+        }
+      },
+      { payments }
+    );
 
     expect(result.accepted).toBe(false);
     if (result.accepted) throw new Error("Expected premium cap rejection.");

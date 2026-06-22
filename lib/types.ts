@@ -79,6 +79,7 @@ export type AgentPurchaseRejectionCode =
   | "invalid_request"
   | "authorization_required"
   | "quote_not_found"
+  | "quote_not_priced"
   | "quote_mismatch"
   | "premium_cap_exceeded"
   | "idempotency_conflict";
@@ -171,6 +172,8 @@ export type PayoutResult = {
   blockedReason?: string;
 };
 
+export type Citation = { url: string; title: string; snippet: string; retrievedAt: string };
+
 export type Policy = {
   id: string;
   certificateId: string;
@@ -187,6 +190,9 @@ export type Policy = {
   riskSource?: string;
   riskScore?: number;
   riskFactors?: string[];
+  riskCitations?: Citation[];
+  pricingMode?: "static" | "dynamic";
+  pricedBy?: "operator_research" | "deterministic_fallback";
   status: PolicyStatus;
   stripePaymentReference?: string;
   stripePayoutReference?: string;

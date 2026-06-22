@@ -79,6 +79,17 @@ export const paymentEvents = pgTable(
   ]
 );
 
+export const pricingJobs = pgTable(
+  "pricing_jobs",
+  {
+    quoteId: text("quote_id").primaryKey(),
+    status: text("status").$type<"pending" | "priced">().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    data: jsonb("data").$type<import("../pricing-job").PricingJob>().notNull()
+  },
+  (table) => [index("pricing_jobs_pending_created_idx").on(table.status, table.createdAt)]
+);
+
 export const auditSnapshots = pgTable(
   "audit_snapshots",
   {

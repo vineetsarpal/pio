@@ -68,6 +68,12 @@ export function generateLivingAuditReport({
       `Missing observations: ${evidence?.metadata.missingObservationCount ?? "pending"}`,
       `Missing-data policy: ${evidence?.metadata.missingDataPolicy ?? "pending"}`,
       `Observations reviewed: ${evidence?.observations.length ?? 0}`,
+      ...(policy.pricedBy === "operator_research"
+        ? [
+            `Pricing: priced via operator research: score ${policy.riskScore}, ${policy.riskCitations?.length ?? 0} sources`,
+            ...(policy.riskCitations ?? []).map((c) => `Research source: ${c.url}`)
+          ]
+        : []),
       `Premium payment: ${policy.stripePaymentReference ?? "missing"}`,
       `Payout reference: ${settlement?.payoutReference ?? "not issued"}`,
       `Settlement status: ${policy.status}`

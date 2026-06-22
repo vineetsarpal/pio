@@ -3,7 +3,7 @@ import { generateAuditReport } from "@/lib/audit";
 import { demoCoverageRequest, demoWeatherEvidence } from "@/lib/demo-fixtures";
 import { runGaugeDemoWorkflow } from "@/lib/gauge-tools";
 import type { PaymentAdapter } from "@/lib/payment-adapter";
-import { SimulatedHermesStripeSkillsAdapter } from "@/lib/payment-adapter";
+import { SimulatedHermesStripeSkillsAdapter } from "./fakes";
 import type { WeatherOracle } from "@/lib/weather-oracle";
 import { normalizeOpenMeteoHourlyRain } from "@/lib/weather-oracle";
 import {
@@ -45,7 +45,7 @@ describe("adapters", () => {
   });
 
   it("runs the Gauge demo through payment, oracle, trigger, payout, and audit seams", async () => {
-    const run = await runGaugeDemoWorkflow();
+    const run = await runGaugeDemoWorkflow({ payments: new SimulatedHermesStripeSkillsAdapter() });
 
     expect(run.policy.status).toBe("payout_issued");
     expect(run.decision.approved).toBe(true);

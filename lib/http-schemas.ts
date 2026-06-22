@@ -69,6 +69,32 @@ export const productQuoteInputSchema = z.discriminatedUnion("productId", [
  */
 export const checkoutRequestSchema = z.union([productQuoteInputSchema, coverageRequestSchema]);
 
+export const dynamicCoverageRequestSchema = z.intersection(
+  productQuoteInputSchema,
+  z.object({ pricing: z.literal("dynamic") })
+);
+
+export const riskMemoSchema = z.object({
+  riskScore: z.number().min(0).max(1),
+  evidence: z.array(z.object({
+    url: z.string().min(1),
+    title: z.string().min(1),
+    snippet: z.string().min(1),
+    retrievedAt: z.string().min(1)
+  })),
+  factors: z.array(z.string()).optional(),
+  toolName: z.string().min(1),
+  model: z.string().optional()
+});
+
+export const confirmDynamicPurchaseSchema = z.object({
+  agentId: z.string().min(1),
+  quoteId: z.string().min(1),
+  idempotencyKey: z.string().min(1),
+  authorization: z.literal("confirm_purchase"),
+  maximumPremium: moneySchema
+});
+
 export const agentOffSessionPurchaseBodySchema = z.object({
   idempotencyKey: z.string().min(1),
   coverageRequest: coverageRequestSchema

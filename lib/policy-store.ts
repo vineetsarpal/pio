@@ -7,6 +7,7 @@ import type {
   WorkflowEvent
 } from "./types";
 import { buildOperatorReviewQueue } from "./operator-review";
+import type { PricingJob } from "./pricing-job";
 
 /**
  * Thrown when a write violates one of the ledger's uniqueness invariants
@@ -71,6 +72,9 @@ export interface PolicyStore {
   getOperatorReviewQueue(): Promise<OperatorReviewItem[]>;
   /** All policy rows, no events — the lightweight query behind the operator list. */
   listPolicies(): Promise<Policy[]>;
+  savePricingJob(job: PricingJob): Promise<void>;
+  getPricingJob(quoteId: string): Promise<PricingJob | undefined>;
+  listPendingPricingJobs(since?: string): Promise<PricingJob[]>;
 }
 
 export class InMemoryPolicyStore implements PolicyStore {
@@ -78,6 +82,7 @@ export class InMemoryPolicyStore implements PolicyStore {
   private readonly workflowEvents: WorkflowEvent[] = [];
   private readonly paymentEvents: PaymentEvent[] = [];
   private readonly auditSnapshots: AuditSnapshot[] = [];
+  private readonly pricingJobs = new Map<string, PricingJob>();
 
   async savePolicy(policy: Policy): Promise<void> {
     this.policies.set(policy.id, structuredClone(policy));
@@ -168,6 +173,7 @@ export class InMemoryPolicyStore implements PolicyStore {
     const workflowBackup = [...this.workflowEvents];
     const paymentBackup = [...this.paymentEvents];
     const auditBackup = [...this.auditSnapshots];
+    const pricingJobsBackup = new Map(this.pricingJobs);
     try {
       return await fn(this);
     } catch (error) {
@@ -181,8 +187,26 @@ export class InMemoryPolicyStore implements PolicyStore {
       this.paymentEvents.push(...paymentBackup);
       this.auditSnapshots.length = 0;
       this.auditSnapshots.push(...auditBackup);
+      this.pricingJobs.clear();
+      for (const [id, j] of pricingJobsBackup) this.pricingJobs.set(id, j);
       throw error;
     }
+  }
+
+  async savePricingJob(job: PricingJob): Promise<void> {
+    this.pricingJobs.set(job.quoteId, structuredClone(job));
+  }
+
+  async getPricingJob(quoteId: string): Promise<PricingJob | undefined> {
+    const job = this.pricingJobs.get(quoteId);
+    return job ? structuredClone(job) : undefined;
+  }
+
+  async listPendingPricingJobs(since?: string): Promise<PricingJob[]> {
+    return Array.from(this.pricingJobs.values())
+      .filter((job) => job.status === "pending" && (since === undefined || job.createdAt > since))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .map((job) => structuredClone(job));
   }
 
   async snapshot(): Promise<PolicyLedgerSnapshot> {

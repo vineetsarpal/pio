@@ -267,4 +267,17 @@ describe.each(harnesses)("$name conformance", ({ create }) => {
     const ids = (await store.listPolicies()).map((p) => p.id).sort();
     expect(ids).toEqual(["policy-a", "policy-b"]);
   });
+
+  it("persists and lists pending pricing jobs identically", async () => {
+    const store = await create();
+    const input = { productId: "rain_event", customerName: "C", eventName: "E", locationName: "L",
+      latitude: 1, longitude: 2, eventStart: "2030-01-01T00:00:00Z", eventEnd: "2030-01-01T06:00:00Z",
+      desiredPayout: { amount: 500, currency: "USD" } };
+    await store.savePricingJob({ quoteId: "q1", productInput: input as never, status: "pending", createdAt: "2026-06-22T00:00:01Z" });
+    await store.savePricingJob({ quoteId: "q2", productInput: input as never, status: "pending", createdAt: "2026-06-22T00:00:02Z" });
+    expect((await store.listPendingPricingJobs("2026-06-22T00:00:01Z")).map((j) => j.quoteId)).toEqual(["q2"]);
+    await store.savePricingJob({ quoteId: "q1", productInput: input as never, status: "priced", createdAt: "2026-06-22T00:00:01Z", pricedAt: "2026-06-22T00:01:00Z" });
+    expect((await store.getPricingJob("q1"))?.status).toBe("priced");
+    expect((await store.listPendingPricingJobs()).map((j) => j.quoteId)).toEqual(["q2"]);
+  });
 });

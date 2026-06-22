@@ -1,8 +1,9 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
-import { auditSnapshots, paymentEvents, policies, workflowEvents } from "./db/schema";
+import { auditSnapshots, paymentEvents, policies, pricingJobs, workflowEvents } from "./db/schema";
 import { buildOperatorReviewQueue } from "./operator-review";
 import { DuplicateEventError, type PolicyStore } from "./policy-store";
+import type { PricingJob } from "./pricing-job";
 import type {
   AuditSnapshot,
   OperatorReviewItem,
@@ -275,5 +276,28 @@ export class PostgresPolicyStore implements PolicyStore {
       .from(policies)
       .orderBy(desc(policies.updatedAt));
     return rows.map((row) => row.data);
+  }
+
+  async savePricingJob(job: PricingJob): Promise<void> {
+    await this.db
+      .insert(pricingJobs)
+      .values({ quoteId: job.quoteId, status: job.status, createdAt: new Date(job.createdAt), data: job })
+      .onConflictDoUpdate({
+        target: pricingJobs.quoteId,
+        set: { status: job.status, createdAt: new Date(job.createdAt), data: job }
+      });
+  }
+
+  async getPricingJob(quoteId: string): Promise<PricingJob | undefined> {
+    const rows = await this.db.select({ data: pricingJobs.data }).from(pricingJobs).where(eq(pricingJobs.quoteId, quoteId));
+    return rows[0]?.data;
+  }
+
+  async listPendingPricingJobs(since?: string): Promise<PricingJob[]> {
+    const where = since === undefined
+      ? eq(pricingJobs.status, "pending")
+      : and(eq(pricingJobs.status, "pending"), gt(pricingJobs.createdAt, new Date(since)));
+    const rows = await this.db.select({ data: pricingJobs.data }).from(pricingJobs).where(where).orderBy(asc(pricingJobs.createdAt));
+    return rows.map((r) => r.data);
   }
 }

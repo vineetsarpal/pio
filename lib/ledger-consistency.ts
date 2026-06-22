@@ -1,5 +1,6 @@
 import type {
   LedgerConsistencyReport,
+  Policy,
   PolicyLedgerSnapshot,
   PolicyStatus,
   WorkflowEvent
@@ -36,10 +37,25 @@ export function projectPolicyStatusFromEvents(
     }, {});
 }
 
+export function assertDynamicPricingEvidence(policy: Policy): string | undefined {
+  if (policy.pricingMode !== "dynamic") return undefined;
+  if (policy.pricedBy === "deterministic_fallback") return undefined;
+  if (policy.pricedBy === "operator_research" && (policy.riskCitations?.length ?? 0) > 0) return undefined;
+  return `Dynamic policy ${policy.id} has no pricing evidence: carries neither operator-research citations nor a recorded deterministic fallback.`;
+}
+
 export function validateLedgerConsistency(ledger: PolicyLedgerSnapshot): LedgerConsistencyReport {
   const checks = ledger.policies.map((policy) => {
     const projection = projectPolicyStatusFromEvents(policy.id, ledger.workflowEvents);
-    const consistent = policy.status === projection.status;
+    const statusConsistent = policy.status === projection.status;
+    const dynamicPricingMessage = assertDynamicPricingEvidence(policy);
+    const consistent = statusConsistent && !dynamicPricingMessage;
+
+    const message = !statusConsistent
+      ? `Current policy row ${policy.status} does not match projected ledger status ${projection.status ?? "missing"}.`
+      : dynamicPricingMessage
+        ? dynamicPricingMessage
+        : `Current policy row ${policy.status} is backed by the latest status-changing workflow event.`;
 
     return {
       policyId: policy.id,
@@ -47,9 +63,7 @@ export function validateLedgerConsistency(ledger: PolicyLedgerSnapshot): LedgerC
       projectedStatus: projection.status,
       sourceEventId: projection.sourceEventId,
       consistent,
-      message: consistent
-        ? `Current policy row ${policy.status} is backed by the latest status-changing workflow event.`
-        : `Current policy row ${policy.status} does not match projected ledger status ${projection.status ?? "missing"}.`
+      message
     };
   });
 

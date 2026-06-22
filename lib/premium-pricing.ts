@@ -60,3 +60,13 @@ export function estimatePremiumRange({
     maximum: calculatePremium(productId, payout, rule.maximumRiskAdjustment, durationHours)
   };
 }
+
+export function clampScore(score: number): number {
+  if (!Number.isFinite(score)) return 0;
+  return Math.min(1, Math.max(0, score));
+}
+
+export function adjustmentFromScore(productId: CoverageProductId, score: number): number {
+  const rule = pricingRules[productId];
+  return rule.minimumRiskAdjustment + clampScore(score) * (rule.maximumRiskAdjustment - rule.minimumRiskAdjustment);
+}
