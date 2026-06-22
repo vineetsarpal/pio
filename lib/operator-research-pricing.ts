@@ -1,4 +1,6 @@
-import type { Citation, ProductRiskAdapters, RiskAssessment } from "./coverage-products";
+import type { Citation, ProductQuoteInput, ProductRiskAdapters, RiskAssessment } from "./coverage-products";
+import { productQuoteId, validateProductQuoteInput } from "./coverage-products";
+import type { PolicyStore } from "./policy-store";
 import type { CoverageProductId } from "./types";
 import { adjustmentFromScore, clampScore } from "./premium-pricing";
 
@@ -43,4 +45,14 @@ export function researchRiskAdapters(assessment: RiskAssessment): ProductRiskAda
     weather: { getRainEventRisk: async () => assessment },
     flight: { getFlightDelayRisk: async () => assessment }
   };
+}
+
+export async function createDynamicPricingJob(
+  input: ProductQuoteInput,
+  { store, now }: { store: PolicyStore; now: string }
+): Promise<{ quoteId: string; status: "quote_requested" }> {
+  validateProductQuoteInput(input, new Date(now));
+  const quoteId = productQuoteId(input);
+  await store.savePricingJob({ quoteId, productInput: input, status: "pending", createdAt: now });
+  return { quoteId, status: "quote_requested" };
 }

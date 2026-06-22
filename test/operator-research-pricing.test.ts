@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { riskAssessmentFromMemo, researchRiskAdapters } from "../lib/operator-research-pricing";
+import { riskAssessmentFromMemo, researchRiskAdapters, createDynamicPricingJob } from "../lib/operator-research-pricing";
+import { InMemoryPolicyStore } from "../lib/policy-store";
 import { adjustmentFromScore } from "../lib/premium-pricing";
 
 const memo = {
@@ -28,4 +29,23 @@ describe("researchRiskAdapters", () => {
     expect(await adapters.weather!.getRainEventRisk({} as never)).toBe(a);
     expect(await adapters.flight!.getFlightDelayRisk({} as never)).toBe(a);
   });
+});
+
+it("createDynamicPricingJob persists a pending job and returns the stable quoteId", async () => {
+  const store = new InMemoryPolicyStore();
+  const input = { productId: "rain_event", customerName: "C", eventName: "E", locationName: "L",
+    latitude: 1, longitude: 2, eventStart: "2030-01-01T00:00:00Z", eventEnd: "2030-01-01T06:00:00Z",
+    desiredPayout: { amount: 500, currency: "USD" } } as never;
+  const res = await createDynamicPricingJob(input, { store, now: "2026-06-22T00:00:00Z" });
+  expect(res.status).toBe("quote_requested");
+  const job = await store.getPricingJob(res.quoteId);
+  expect(job?.status).toBe("pending");
+});
+
+it("createDynamicPricingJob rejects an invalid window", async () => {
+  const store = new InMemoryPolicyStore();
+  const input = { productId: "rain_event", customerName: "C", eventName: "E", locationName: "L",
+    latitude: 1, longitude: 2, eventStart: "2020-01-01T06:00:00Z", eventEnd: "2020-01-01T00:00:00Z",
+    desiredPayout: { amount: 500, currency: "USD" } } as never;
+  await expect(createDynamicPricingJob(input, { store, now: "2026-06-22T00:00:00Z" })).rejects.toThrow();
 });

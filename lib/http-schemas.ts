@@ -69,6 +69,11 @@ export const productQuoteInputSchema = z.discriminatedUnion("productId", [
  */
 export const checkoutRequestSchema = z.union([productQuoteInputSchema, coverageRequestSchema]);
 
+export const dynamicCoverageRequestSchema = z.intersection(
+  productQuoteInputSchema,
+  z.object({ pricing: z.literal("dynamic") })
+);
+
 export const agentOffSessionPurchaseBodySchema = z.object({
   idempotencyKey: z.string().min(1),
   coverageRequest: coverageRequestSchema
