@@ -4,10 +4,13 @@ import {
   projectPolicyStatusFromEvents,
   validateLedgerConsistency
 } from "@/lib/ledger-consistency";
+import { SimulatedHermesStripeSkillsAdapter } from "./fakes";
+
+const payments = new SimulatedHermesStripeSkillsAdapter();
 
 describe("ledger consistency", () => {
   it("proves the current policy row is backed by status-changing workflow events", async () => {
-    const run = await runGaugeDemoWorkflow();
+    const run = await runGaugeDemoWorkflow({ payments });
 
     expect(run.ledgerConsistency.consistent).toBe(true);
     expect(run.ledgerConsistency.checks[0]).toMatchObject({
@@ -19,7 +22,7 @@ describe("ledger consistency", () => {
   });
 
   it("ignores audit_generated when projecting operational policy status", async () => {
-    const run = await runGaugeDemoWorkflow();
+    const run = await runGaugeDemoWorkflow({ payments });
     const projection = projectPolicyStatusFromEvents(run.policy.id, run.ledger.workflowEvents);
 
     expect(projection.status).toBe("payout_issued");
@@ -27,7 +30,7 @@ describe("ledger consistency", () => {
   });
 
   it("detects drift between the current row and the ledger projection", async () => {
-    const run = await runGaugeDemoWorkflow();
+    const run = await runGaugeDemoWorkflow({ payments });
     const drifted = {
       ...run.ledger,
       policies: [

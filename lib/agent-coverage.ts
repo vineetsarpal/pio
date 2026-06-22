@@ -6,7 +6,6 @@ import type {
   Money
 } from "./types";
 import type { PaymentAdapter } from "./payment-adapter";
-import { SimulatedHermesStripeSkillsAdapter } from "./payment-adapter";
 import { quotePolicy } from "./workflow";
 
 type IdempotencyRecord = {
@@ -99,12 +98,12 @@ export function handleAgentCoverageRequest(input: unknown): AgentCoverageRespons
 export async function handleAgentPurchaseConfirmation(
   input: unknown,
   {
-    payments = new SimulatedHermesStripeSkillsAdapter(),
+    payments,
     confirmations = new AgentPurchaseConfirmationStore()
   }: {
-    payments?: Pick<PaymentAdapter, "mode" | "createCustomer" | "createCheckout">;
+    payments: Pick<PaymentAdapter, "mode" | "createCustomer" | "createCheckout">;
     confirmations?: AgentPurchaseConfirmationStore;
-  } = {}
+  }
 ): Promise<AgentPurchaseConfirmationResponse> {
   const parsed = parseAgentPurchaseConfirmationRequest(input);
   if (!parsed.ok) {

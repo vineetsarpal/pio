@@ -6,7 +6,6 @@ import { buildOperatorReviewQueue } from "./operator-review";
 import type { PaymentAdapter } from "./payment-adapter";
 import type { PolicyStore } from "./policy-store";
 import type { WeatherOracle } from "./weather-oracle";
-import { SimulatedHermesStripeSkillsAdapter } from "./payment-adapter";
 import {
   handlePayoutCompletedEvent,
   handlePayoutRequestedEvent,
@@ -27,18 +26,18 @@ import {
 } from "./workflow";
 
 export async function runGaugeDemoWorkflow({
+  payments,
   request = demoCoverageRequest,
   weatherSource = "demo_replay",
-  payments = new SimulatedHermesStripeSkillsAdapter(),
   oracle = createWeatherOracle(weatherSource),
   store = new InMemoryPolicyStore()
 }: {
+  payments: PaymentAdapter;
   request?: CoverageRequest;
   weatherSource?: WeatherEvidence["source"];
-  payments?: PaymentAdapter;
   oracle?: WeatherOracle;
   store?: PolicyStore;
-} = {}): Promise<GaugeDemoRun> {
+}): Promise<GaugeDemoRun> {
   const quotedPolicy = quotePolicy(request);
   await store.savePolicy(quotedPolicy);
   await store.appendWorkflowEvent(

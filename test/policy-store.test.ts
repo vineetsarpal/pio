@@ -4,6 +4,7 @@ import { createFinalAuditSnapshot, generateLivingAuditReport } from "@/lib/audit
 import { demoWeatherEvidence } from "@/lib/demo-fixtures";
 import { runGaugeDemoWorkflow } from "@/lib/gauge-tools";
 import { InMemoryPolicyStore, paymentEvent } from "@/lib/policy-store";
+import { SimulatedHermesStripeSkillsAdapter } from "./fakes";
 import {
   activateMonitoring,
   approveClaim,
@@ -19,7 +20,7 @@ import {
 describe("policy store", () => {
   it("records the workflow and payment events that form the audit spine", async () => {
     const store = new InMemoryPolicyStore();
-    const run = await runGaugeDemoWorkflow({ store });
+    const run = await runGaugeDemoWorkflow({ store, payments: new SimulatedHermesStripeSkillsAdapter() });
     const snapshot = await store.snapshot();
 
     expect(run.ledger).toEqual(snapshot);

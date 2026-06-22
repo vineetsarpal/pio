@@ -114,11 +114,10 @@ Weather evidence is snapshot-based. Replayed observations are treated as settlem
 
 ## API
 
-Run the complete workflow:
-
-```bash
-curl http://localhost:3000/api/demo-run
-```
+The end-to-end Gauge workflow (quote → checkout → payment → monitoring →
+trigger → payout → audit) is exercised in-process by `runGaugeDemoWorkflow`
+(`lib/gauge-tools.ts`) and covered by the test suite; it is not exposed as a
+runtime endpoint. The HTTP API surfaces the individual steps below.
 
 Request a quote (for a human UI or a customer-owned agent):
 
