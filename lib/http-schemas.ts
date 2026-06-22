@@ -87,6 +87,14 @@ export const riskMemoSchema = z.object({
   model: z.string().optional()
 });
 
+export const confirmDynamicPurchaseSchema = z.object({
+  agentId: z.string().min(1),
+  quoteId: z.string().min(1),
+  idempotencyKey: z.string().min(1),
+  authorization: z.literal("confirm_purchase"),
+  maximumPremium: moneySchema
+});
+
 export const agentOffSessionPurchaseBodySchema = z.object({
   idempotencyKey: z.string().min(1),
   coverageRequest: coverageRequestSchema

@@ -79,6 +79,7 @@ export type AgentPurchaseRejectionCode =
   | "invalid_request"
   | "authorization_required"
   | "quote_not_found"
+  | "quote_not_priced"
   | "quote_mismatch"
   | "premium_cap_exceeded"
   | "idempotency_conflict";
