@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Archivo, Fraunces, Spline_Sans_Mono } from "next/font/google";
 import Link from "next/link";
-import { Droplets } from "lucide-react";
+import { Gauge } from "lucide-react";
 import "./globals.css";
 
 const display = Fraunces({
@@ -49,7 +49,7 @@ export default function RootLayout({
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
             <Link href="/" className="group flex items-baseline gap-2.5">
               <span className="flex h-7 w-7 items-center justify-center border border-ink bg-rain text-card transition-transform group-hover:-rotate-6">
-                <Droplets size={15} />
+                <Gauge size={15} />
               </span>
               <span className="font-display text-2xl font-semibold leading-none tracking-tight">
                 pio
