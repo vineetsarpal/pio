@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { runGaugeDemoWorkflow } from "@/lib/gauge-tools";
 import {
+  assertDynamicPricingEvidence,
   projectPolicyStatusFromEvents,
   validateLedgerConsistency
 } from "@/lib/ledger-consistency";
+import type { Policy } from "@/lib/types";
 import { SimulatedHermesStripeSkillsAdapter } from "./fakes";
 
 const payments = new SimulatedHermesStripeSkillsAdapter();
@@ -51,4 +53,45 @@ describe("ledger consistency", () => {
     });
     expect(report.checks[0].message).toContain("does not match");
   });
+});
+
+const base = {
+  id: "p",
+  certificateId: "c",
+  customerName: "C",
+  eventName: "E",
+  locationName: "L",
+  premium: { amount: 30, currency: "USD" },
+  payout: { amount: 500, currency: "USD" },
+  trigger: {
+    variable: "rainfall_mm",
+    operator: ">",
+    threshold: 5,
+    aggregation: "sum",
+    window: { start: "", end: "" }
+  },
+  weatherOracleSource: "demo_replay",
+  status: "policy_quoted"
+} as unknown as Policy;
+
+it("flags a dynamic priced policy with no evidence and no fallback", () => {
+  expect(assertDynamicPricingEvidence({ ...base, pricingMode: "dynamic" })).toMatch(/evidence/i);
+});
+it("accepts operator_research with citations", () => {
+  expect(
+    assertDynamicPricingEvidence({
+      ...base,
+      pricingMode: "dynamic",
+      pricedBy: "operator_research",
+      riskCitations: [{ url: "u", title: "t", snippet: "s", retrievedAt: "r" }]
+    })
+  ).toBeUndefined();
+});
+it("accepts a recorded deterministic fallback", () => {
+  expect(
+    assertDynamicPricingEvidence({ ...base, pricingMode: "dynamic", pricedBy: "deterministic_fallback" })
+  ).toBeUndefined();
+});
+it("ignores static policies", () => {
+  expect(assertDynamicPricingEvidence(base)).toBeUndefined();
 });

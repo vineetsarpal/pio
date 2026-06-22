@@ -98,6 +98,25 @@ describe("audit reports", () => {
     expect(snapshot.report.status).toBe("final");
   });
 
+  it("surfaces operator research provenance in facts when pricedBy is operator_research", () => {
+    const policy = quotePolicy(demoCoverageRequest);
+    const researchPolicy = {
+      ...policy,
+      pricingMode: "dynamic" as const,
+      pricedBy: "operator_research" as const,
+      riskScore: 0.72,
+      riskCitations: [{ url: "https://example.com/source", title: "Source", snippet: "s", retrievedAt: "2026-06-22" }]
+    };
+    const report = generateLivingAuditReport({
+      policy: researchPolicy,
+      generatedAt: "2026-06-22T12:00:00Z",
+      sourceEventCount: 1
+    });
+
+    expect(report.facts.some((f) => f.includes("operator research"))).toBe(true);
+    expect(report.facts.some((f) => f.includes("https://example.com/source"))).toBe(true);
+  });
+
   it("builds a living audit trail from ledger checkpoints", async () => {
     const store = new InMemoryPolicyStore();
     const quoted = quotePolicy(demoCoverageRequest);
