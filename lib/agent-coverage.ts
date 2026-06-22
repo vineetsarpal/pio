@@ -37,7 +37,10 @@ export function handleAgentCoverageRequest(input: unknown): AgentCoverageRespons
   }
 
   const request = parsed.request;
-  if (request.desiredPayout.currency !== "USD" || request.maximumPremium?.currency !== "USD") {
+  if (
+    request.desiredPayout.currency !== "USD" ||
+    (request.maximumPremium && request.maximumPremium.currency !== "USD")
+  ) {
     return {
       accepted: false,
       reasonCode: "unsupported_currency",
@@ -99,7 +102,7 @@ export async function handleAgentPurchaseConfirmation(
     payments = new SimulatedHermesStripeSkillsAdapter(),
     confirmations = new AgentPurchaseConfirmationStore()
   }: {
-    payments?: PaymentAdapter;
+    payments?: Pick<PaymentAdapter, "mode" | "createCustomer" | "createCheckout">;
     confirmations?: AgentPurchaseConfirmationStore;
   } = {}
 ): Promise<AgentPurchaseConfirmationResponse> {

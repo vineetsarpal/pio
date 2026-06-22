@@ -24,6 +24,16 @@ describe("agent coverage API contract", () => {
     expect(result.constraints.premiumWithinBudget).toBe(true);
   });
 
+  it("accepts an agent request that omits maximumPremium (no budget cap)", () => {
+    const { maximumPremium: _omit, ...withoutCap } = agentRequest;
+    const result = handleAgentCoverageRequest(withoutCap);
+
+    expect(result.accepted).toBe(true);
+    if (!result.accepted) throw new Error("Expected accepted agent quote without a cap.");
+    expect(result.reasonCode).toBe("quote_ready");
+    expect(result.policy.premium.amount).toBe(25);
+  });
+
   it("rejects a customer-owned agent request when the quoted premium exceeds the cap", () => {
     const result = handleAgentCoverageRequest({
       ...agentRequest,

@@ -94,6 +94,50 @@ describe("LiveStripeCheckoutAdapter", () => {
     });
   });
 
+  it("creates a Stripe test-mode customer and returns its id", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ id: "cus_test_live_456" }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      })
+    );
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const adapter = new LiveStripeCheckoutAdapter({
+      secretKey: "sk_test_123",
+      appUrl: "https://pio.test"
+    });
+
+    const customer = await adapter.createCustomer("North Pier Market");
+
+    expect(customer).toEqual({ id: "cus_test_live_456", name: "North Pier Market" });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://api.stripe.com/v1/customers");
+    expect(init.method).toBe("POST");
+    expect(init.headers).toMatchObject({ Authorization: "Bearer sk_test_123" });
+    const body = init.body as URLSearchParams;
+    expect(body.get("name")).toBe("North Pier Market");
+  });
+
+  it("surfaces a Stripe customer creation failure instead of returning an unusable id", async () => {
+    globalThis.fetch = vi.fn(async () =>
+      new Response(JSON.stringify({ error: { message: "No such API key" } }), {
+        status: 401,
+        headers: { "content-type": "application/json" }
+      })
+    ) as typeof fetch;
+
+    const adapter = new LiveStripeCheckoutAdapter({
+      secretKey: "sk_test_bad",
+      appUrl: "https://pio.test"
+    });
+
+    await expect(adapter.createCustomer("North Pier Market")).rejects.toThrow(
+      "Stripe customer creation failed: No such API key"
+    );
+  });
+
   it("surfaces Stripe API failures without returning an unsafe checkout", async () => {
     globalThis.fetch = vi.fn(async () =>
       new Response(JSON.stringify({ error: { message: "No such API key" } }), {

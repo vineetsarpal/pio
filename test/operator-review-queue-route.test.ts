@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const hoisted = vi.hoisted(() => ({ storeRef: {} as { current?: unknown } }));
 vi.mock("../lib/policy-store-factory", () => ({
@@ -10,7 +10,16 @@ import { demoCoverageRequest } from "../lib/demo-fixtures";
 import { InMemoryPolicyStore, paymentEvent } from "../lib/policy-store";
 import { quotePolicy } from "../lib/workflow";
 
+const originalKey = process.env.PIO_OPERATOR_KEY;
+
+function reviewRequest(key: string | undefined = "pio_operator_key_123") {
+  return new Request("https://pio.test/api/operator/review-queue", {
+    headers: key ? { authorization: `Bearer ${key}` } : {}
+  });
+}
+
 beforeEach(async () => {
+  process.env.PIO_OPERATOR_KEY = "pio_operator_key_123";
   const store = new InMemoryPolicyStore();
   const policy = quotePolicy(demoCoverageRequest);
   await store.savePolicy(policy);
@@ -29,9 +38,20 @@ beforeEach(async () => {
   hoisted.storeRef.current = store;
 });
 
+afterEach(() => {
+  if (originalKey === undefined) delete process.env.PIO_OPERATOR_KEY;
+  else process.env.PIO_OPERATOR_KEY = originalKey;
+});
+
 describe("GET /api/operator/review-queue", () => {
-  it("returns the real operator review queue from the store", async () => {
-    const response = await GET();
+  it("rejects an unauthenticated operator with 401", async () => {
+    const response = await GET(reviewRequest("wrong_key"));
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({ reasonCode: "unauthorized" });
+  });
+
+  it("returns the real operator review queue from the store for an authenticated operator", async () => {
+    const response = await GET(reviewRequest());
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body.source).toBe("ledger_derived");
