@@ -188,6 +188,26 @@ describe("quoteCoverageProduct", () => {
   });
 });
 
+import { productQuoteId, DemoWeatherPricingApi } from "../lib/coverage-products";
+import type { RainEventQuoteInput } from "../lib/coverage-products";
+
+const rainInput: RainEventQuoteInput = {
+  productId: "rain_event",
+  customerName: "North Pier Market",
+  eventName: "Harbor Market",
+  locationName: "Toronto",
+  latitude: 43.64,
+  longitude: -79.38,
+  eventStart: "2030-06-20T12:00:00Z",
+  eventEnd: "2030-06-20T18:00:00Z",
+  desiredPayout: { amount: 500, currency: "USD" }
+};
+
+it("productQuoteId equals the id quoteCoverageProduct assigns", async () => {
+  const quote = await quoteCoverageProduct(rainInput, { weather: new DemoWeatherPricingApi() });
+  expect(productQuoteId(rainInput)).toBe(quote.policy.id);
+});
+
 function weatherRisk({
   score,
   pricingAdjustment,

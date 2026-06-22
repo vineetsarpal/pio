@@ -441,6 +441,34 @@ function buildQuote(
   };
 }
 
+function stableIdParts(input: ProductQuoteInput, deductible: Money): string[] {
+  if (input.productId === "rain_event") {
+    return [input.productId, input.customerName, input.eventName, input.locationName,
+      input.eventStart, input.eventEnd, String(input.desiredPayout.amount), String(deductible.amount)];
+  }
+  return [input.productId, input.customerName, input.passengerName, input.airline, input.flightNumber,
+    input.originAirport, input.destinationAirport, input.departureTime,
+    String(input.desiredPayout.amount), String(deductible.amount)];
+}
+
+export function productQuoteId(input: ProductQuoteInput): string {
+  const deductible = input.deductible ?? USD(0);
+  const stableId = stablePolicyId(stableIdParts(input, deductible));
+  return input.productId === "rain_event" ? `pio-pol-rain-${stableId}` : `pio-pol-flight-${stableId}`;
+}
+
+export function validateProductQuoteInput(input: ProductQuoteInput, now: Date): void {
+  assertUsd(input.desiredPayout, "desiredPayout");
+  if (input.maximumPremium) assertUsd(input.maximumPremium, "maximumPremium");
+  validateCoverageAmount(input.desiredPayout);
+  if (input.productId === "rain_event") {
+    validateCoordinates(input.latitude, input.longitude);
+    validateWindow(input.eventStart, input.eventEnd, now);
+  } else {
+    validateWindow(input.departureTime, input.arrivalTime, now);
+  }
+}
+
 function buildRainPolicy(
   input: RainEventQuoteInput,
   premium: Money,
@@ -448,16 +476,7 @@ function buildRainPolicy(
   deductible: Money,
   payout: Money
 ): Policy {
-  const stableId = stablePolicyId([
-    input.productId,
-    input.customerName,
-    input.eventName,
-    input.locationName,
-    input.eventStart,
-    input.eventEnd,
-    String(input.desiredPayout.amount),
-    String(deductible.amount)
-  ]);
+  const stableId = stablePolicyId(stableIdParts(input, deductible));
 
   return {
     id: `pio-pol-rain-${stableId}`,
@@ -495,18 +514,7 @@ function buildFlightPolicy(
   deductible: Money,
   payout: Money
 ): Policy {
-  const stableId = stablePolicyId([
-    input.productId,
-    input.customerName,
-    input.passengerName,
-    input.airline,
-    input.flightNumber,
-    input.originAirport,
-    input.destinationAirport,
-    input.departureTime,
-    String(input.desiredPayout.amount),
-    String(deductible.amount)
-  ]);
+  const stableId = stablePolicyId(stableIdParts(input, deductible));
 
   return {
     id: `pio-pol-flight-${stableId}`,
