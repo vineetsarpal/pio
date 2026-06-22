@@ -26,7 +26,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { PioClient } from "./pio-client.js";
-import { handlePioToolCall, pioMcpToolList } from "./mcp-tools.js";
+import { activeScopesFromEnv, handlePioToolCall, pioMcpToolList } from "./mcp-tools.js";
 
 const baseUrl = process.env.PIO_BASE_URL;
 if (!baseUrl) {
@@ -43,7 +43,8 @@ const client = new PioClient({
 
 const server = new Server({ name: "pio", version: "0.1.0" }, { capabilities: { tools: {} } });
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: pioMcpToolList() }));
+const scopes = activeScopesFromEnv(process.env);
+server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: pioMcpToolList(scopes) }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) =>
   handlePioToolCall(client, request.params.name, (request.params.arguments ?? {}) as Record<string, unknown>)

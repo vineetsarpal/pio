@@ -1,28 +1,43 @@
 import { describe, expect, it, vi } from "vitest";
-import { handlePioToolCall, pioMcpToolList } from "../hermes/mcp-tools";
+import { activeScopesFromEnv, handlePioToolCall, pioMcpToolList } from "../hermes/mcp-tools";
 import type { PioClient } from "../hermes/pio-client";
 
 describe("pioMcpToolList", () => {
-  it("exposes all PIO tools with object input schemas", () => {
-    const tools = pioMcpToolList();
-    expect(tools.map((tool) => tool.name).sort()).toEqual(
-      [
-        "confirm_dynamic_purchase",
-        "confirm_purchase",
-        "get_policy",
-        "get_review_queue",
-        "purchase_off_session",
-        "request_coverage",
-        "request_dynamic_coverage",
-        "settle_policy",
-        "submit_research_quote",
-        "wait_for_pricing_job"
-      ].sort()
-    );
-    for (const tool of tools) {
+  it("lists all ten tools when no scope filter is given", () => {
+    expect(pioMcpToolList().map((t) => t.name).sort()).toEqual([
+      "confirm_dynamic_purchase", "confirm_purchase", "get_policy", "get_review_queue",
+      "purchase_off_session", "request_coverage", "request_dynamic_coverage",
+      "settle_policy", "submit_research_quote", "wait_for_pricing_job"
+    ].sort());
+    for (const tool of pioMcpToolList()) {
       expect(typeof tool.description).toBe("string");
       expect(tool.inputSchema.type).toBe("object");
     }
+  });
+
+  it("lists only operator tools for the operator scope", () => {
+    expect(pioMcpToolList(["operator"]).map((t) => t.name).sort()).toEqual(
+      ["get_review_queue", "settle_policy", "submit_research_quote", "wait_for_pricing_job"].sort()
+    );
+  });
+
+  it("lists only buyer tools for the buyer scope", () => {
+    expect(pioMcpToolList(["buyer"]).map((t) => t.name).sort()).toEqual(
+      ["confirm_dynamic_purchase", "confirm_purchase", "get_policy", "purchase_off_session",
+       "request_coverage", "request_dynamic_coverage"].sort()
+    );
+  });
+});
+
+describe("activeScopesFromEnv", () => {
+  it("derives operator scope from the operator key only", () => {
+    expect(activeScopesFromEnv({ PIO_OPERATOR_KEY: "x" })).toEqual(["operator"]);
+  });
+  it("derives buyer scope from the agent key only", () => {
+    expect(activeScopesFromEnv({ PIO_AGENT_SEED_KEY: "x" })).toEqual(["buyer"]);
+  });
+  it("defaults to both scopes when neither key is set", () => {
+    expect(activeScopesFromEnv({}).sort()).toEqual(["buyer", "operator"]);
   });
 });
 

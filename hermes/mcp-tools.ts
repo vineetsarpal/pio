@@ -8,7 +8,7 @@
  */
 
 import type { PioClient } from "./pio-client.js";
-import { dispatchPioToolCall, pioTools } from "./tools.js";
+import { dispatchPioToolCall, pioTools, type ToolScope } from "./tools.js";
 
 export type McpToolDescriptor = {
   name: string;
@@ -21,13 +21,21 @@ export type McpToolResult = {
   isError?: boolean;
 };
 
-/** The six real PIO tools, shaped as MCP tool descriptors. */
-export function pioMcpToolList(): McpToolDescriptor[] {
-  return pioTools.map((tool) => ({
+/** The PIO tools, shaped as MCP tool descriptors. When scopes are given, only tools whose scope is included are returned. */
+export function pioMcpToolList(scopes?: ToolScope[]): McpToolDescriptor[] {
+  const tools = scopes ? pioTools.filter((tool) => scopes.includes(tool.scope)) : pioTools;
+  return tools.map((tool) => ({
     name: tool.function.name,
     description: tool.function.description,
     inputSchema: tool.function.parameters as unknown as Record<string, unknown>
   }));
+}
+
+export function activeScopesFromEnv(env: { PIO_OPERATOR_KEY?: string; PIO_AGENT_SEED_KEY?: string }): ToolScope[] {
+  const scopes: ToolScope[] = [];
+  if (env.PIO_OPERATOR_KEY) scopes.push("operator");
+  if (env.PIO_AGENT_SEED_KEY) scopes.push("buyer");
+  return scopes.length > 0 ? scopes : ["buyer", "operator"];
 }
 
 /**
