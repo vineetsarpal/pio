@@ -171,6 +171,8 @@ export type PayoutResult = {
   blockedReason?: string;
 };
 
+export type Citation = { url: string; title: string; snippet: string; retrievedAt: string };
+
 export type Policy = {
   id: string;
   certificateId: string;
@@ -187,7 +189,7 @@ export type Policy = {
   riskSource?: string;
   riskScore?: number;
   riskFactors?: string[];
-  riskCitations?: { url: string; title: string; snippet: string; retrievedAt: string }[];
+  riskCitations?: Citation[];
   pricingMode?: "static" | "dynamic";
   pricedBy?: "operator_research" | "deterministic_fallback";
   status: PolicyStatus;

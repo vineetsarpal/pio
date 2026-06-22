@@ -1,4 +1,4 @@
-import type { CoverageProductId, Money, Policy, WeatherEvidence } from "./types";
+import type { Citation, CoverageProductId, Money, Policy, WeatherEvidence } from "./types";
 import { lookupAeroDataBoxFlights, type FlightLookupResult } from "./aerodatabox";
 import { calculatePremium } from "./premium-pricing";
 
@@ -105,7 +105,7 @@ export type FlightDelayQuoteInput = {
 
 export type ProductQuoteInput = RainEventQuoteInput | FlightDelayQuoteInput;
 
-export type Citation = { url: string; title: string; snippet: string; retrievedAt: string };
+export type { Citation } from "./types";
 
 export type RiskAssessment = {
   productId: CoverageProductId;
