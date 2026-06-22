@@ -102,6 +102,10 @@ select {
   .field-input {
     @apply mt-1.5 w-full border border-line bg-paper/50 px-3 py-2 font-mono text-sm text-ink outline-none transition focus:border-rain focus:bg-card focus:ring-2 focus:ring-rain/20;
   }
+
+  .field-readonly {
+    @apply cursor-not-allowed border-dashed border-line bg-paper/20 text-ink-soft focus:border-line focus:bg-paper/20 focus:ring-0;
+  }
 }
 
 @layer utilities {

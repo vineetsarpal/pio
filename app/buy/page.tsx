@@ -498,14 +498,24 @@ function RainFields() {
 
 function FlightFields() {
   const [flight, setFlight] = useState({
-    airline: defaultFlight.airline,
+    airline: "",
     flightNumber: defaultFlight.flightNumber,
-    originAirport: defaultFlight.originAirport,
-    destinationAirport: defaultFlight.destinationAirport,
-    departureTime: defaultFlight.departureTime,
-    arrivalTime: defaultFlight.arrivalTime
+    originAirport: "",
+    destinationAirport: "",
+    departureTime: "",
+    arrivalTime: "",
+    status: "",
+    originName: "",
+    destinationName: ""
   });
   const [lookupDate, setLookupDate] = useState(defaultFlight.departureTime.slice(0, 10));
+  const [manualEntry, setManualEntry] = useState(false);
+
+  useEffect(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    setLookupDate(toLocalDateInput(tomorrow));
+  }, []);
   const [lookupState, setLookupState] = useState<
     | { status: "idle" }
     | { status: "loading" }
@@ -516,7 +526,12 @@ function FlightFields() {
   >({ status: "idle" });
 
   function updateFlightField(field: keyof typeof flight, value: string) {
-    setFlight((current) => ({ ...current, [field]: value }));
+    setFlight((current) => {
+      const next = { ...current, [field]: value };
+      if (field === "originAirport") next.originName = "";
+      if (field === "destinationAirport") next.destinationName = "";
+      return next;
+    });
     setLookupState((current) => (current.status === "loading" ? current : { status: "idle" }));
   }
 
@@ -552,8 +567,12 @@ function FlightFields() {
       originAirport: result.originAirport,
       destinationAirport: result.destinationAirport,
       departureTime: toDateTimeLocal(result.departureTime),
-      arrivalTime: toDateTimeLocal(result.arrivalTime)
+      arrivalTime: toDateTimeLocal(result.arrivalTime),
+      status: result.status,
+      originName: result.originName,
+      destinationName: result.destinationName
     });
+    setManualEntry(false);
     setLookupState({ status: "selected", result });
   }
 
@@ -610,14 +629,24 @@ function FlightFields() {
       />
 
       <div className="md:col-span-2">
-        <button
-          className="btn-ghost w-full sm:w-auto"
-          type="button"
-          disabled={lookupState.status === "loading"}
-          onClick={() => void lookupFlight()}
-        >
-          {lookupState.status === "loading" ? "Finding flight…" : "Find flight details"}
-        </button>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <button
+            className="btn-ghost w-full sm:w-auto"
+            type="button"
+            disabled={lookupState.status === "loading"}
+            onClick={() => void lookupFlight()}
+          >
+            {lookupState.status === "loading" ? "Finding flight…" : "Find flight details"}
+          </button>
+          <button
+            className="btn-ghost w-full sm:w-auto"
+            type="button"
+            disabled={manualEntry}
+            onClick={() => setManualEntry(true)}
+          >
+            Enter manually (no api call)
+          </button>
+        </div>
         {lookupState.status === "empty" ? (
           <p className="mt-2 text-xs text-signal" role="status">
             No matching flight was found. Check the number and date, or enter the itinerary manually below.
@@ -661,37 +690,67 @@ function FlightFields() {
         label="Airline"
         value={flight.airline}
         onChange={(value) => updateFlightField("airline", value)}
-        suggestions={airlineOptions}
+        suggestions={manualEntry ? airlineOptions : undefined}
+        readOnly={!manualEntry}
         required
       />
       <Field
-        name="originAirport"
-        label="Origin"
-        value={flight.originAirport}
-        onChange={(value) => updateFlightField("originAirport", value.toUpperCase())}
-        suggestions={airportOptions}
-        maxLength={3}
-        pattern="[A-Za-z]{3}"
-        inputClassName="uppercase"
-        required
+        name="flightStatus"
+        label="Flight status"
+        value={flight.status}
+        readOnly
       />
-      <Field
-        name="destinationAirport"
-        label="Destination"
-        value={flight.destinationAirport}
-        onChange={(value) => updateFlightField("destinationAirport", value.toUpperCase())}
-        suggestions={airportOptions}
-        maxLength={3}
-        pattern="[A-Za-z]{3}"
-        inputClassName="uppercase"
-        required
-      />
+      {manualEntry ? (
+        <Field
+          name="originAirport"
+          label="Origin"
+          value={flight.originAirport}
+          onChange={(value) => updateFlightField("originAirport", value.toUpperCase())}
+          suggestions={airportOptions}
+          maxLength={3}
+          pattern="[A-Za-z]{3}"
+          inputClassName="uppercase"
+          required
+        />
+      ) : (
+        <>
+          <input type="hidden" name="originAirport" value={flight.originAirport} />
+          <Field
+            name="originAirportLabel"
+            label="Origin"
+            value={flight.originName ? `${flight.originAirport} - ${flight.originName}` : flight.originAirport}
+            readOnly
+          />
+        </>
+      )}
+      {manualEntry ? (
+        <Field
+          name="destinationAirport"
+          label="Destination"
+          value={flight.destinationAirport}
+          onChange={(value) => updateFlightField("destinationAirport", value.toUpperCase())}
+          suggestions={airportOptions}
+          maxLength={3}
+          pattern="[A-Za-z]{3}"
+          inputClassName="uppercase"
+          required
+        />
+      ) : (
+        <>
+          <input type="hidden" name="destinationAirport" value={flight.destinationAirport} />
+          <Field
+            name="destinationAirportLabel"
+            label="Destination"
+            value={
+              flight.destinationName
+                ? `${flight.destinationAirport} - ${flight.destinationName}`
+                : flight.destinationAirport
+            }
+            readOnly
+          />
+        </>
+      )}
 
-      <FlightFormSection
-        number="03"
-        title="Schedule"
-        description="Use the local times printed on the itinerary."
-      />
       <Field
         name="departureTime"
         label="Scheduled departure"
@@ -699,6 +758,7 @@ function FlightFields() {
         onChange={(value) => updateFlightField("departureTime", value)}
         type="datetime-local"
         helperText="Local time at the origin airport."
+        readOnly={!manualEntry}
         required
       />
       <Field
@@ -708,16 +768,19 @@ function FlightFields() {
         onChange={(value) => updateFlightField("arrivalTime", value)}
         type="datetime-local"
         helperText="Local time at the destination airport."
+        readOnly={!manualEntry}
         required
       />
 
       <FlightFormSection
-        number="04"
+        number="03"
         title="Protection"
         description="Choose the benefit and deductible that fit this trip."
       />
-      <CoverageAmountField defaultValue={defaultFlight.desiredPayout} options={flightCoverageAmounts} />
-      <DeductibleField defaultValue={defaultFlight.deductible} />
+      <div className="grid gap-4 md:col-span-2 md:grid-cols-2">
+        <CoverageAmountField defaultValue={defaultFlight.desiredPayout} options={flightCoverageAmounts} />
+        <DeductibleField defaultValue={defaultFlight.deductible} />
+      </div>
     </>
   );
 }
@@ -853,7 +916,8 @@ function Field({
   value,
   onChange,
   suggestions,
-  required = false
+  required = false,
+  readOnly = false
 }: {
   name: string;
   label: string;
@@ -869,6 +933,7 @@ function Field({
   onChange?: (value: string) => void;
   suggestions?: Array<{ value: string; label: string }>;
   required?: boolean;
+  readOnly?: boolean;
 }) {
   const helperId = helperText ? `${name}-help` : undefined;
   const listId = suggestions ? `${name}-suggestions` : undefined;
@@ -876,7 +941,7 @@ function Field({
     <label className="block">
       <span className="font-mono text-[0.66rem] uppercase tracking-wider text-ink-soft">{label}</span>
       <input
-        className={`field-input ${inputClassName ?? ""}`}
+        className={`field-input ${readOnly ? "field-readonly" : ""} ${inputClassName ?? ""}`}
         name={name}
         type={type}
         {...(value === undefined
@@ -888,6 +953,7 @@ function Field({
         pattern={pattern}
         list={listId}
         required={required}
+        readOnly={readOnly}
         aria-describedby={helperId}
       />
       {suggestions ? (
@@ -1045,6 +1111,11 @@ function toDateTimeLocal(value: string): string {
 function toLocalDateTimeInput(value: Date): string {
   const local = new Date(value.getTime() - value.getTimezoneOffset() * 60 * 1000);
   return local.toISOString().slice(0, 16);
+}
+
+function toLocalDateInput(value: Date): string {
+  const local = new Date(value.getTime() - value.getTimezoneOffset() * 60 * 1000);
+  return local.toISOString().slice(0, 10);
 }
 
 function formatFlightSchedule(departure: string, arrival: string): string {
