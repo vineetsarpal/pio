@@ -7,12 +7,16 @@ describe("pioTools", () => {
     const names = pioTools.map((tool) => tool.function.name).sort();
     expect(names).toEqual(
       [
+        "confirm_dynamic_purchase",
         "confirm_purchase",
         "get_policy",
         "get_review_queue",
         "purchase_off_session",
         "request_coverage",
-        "settle_policy"
+        "request_dynamic_coverage",
+        "settle_policy",
+        "submit_research_quote",
+        "wait_for_pricing_job"
       ].sort()
     );
   });
@@ -23,6 +27,38 @@ describe("pioTools", () => {
       expect(tool.function.parameters.type).toBe("object");
     }
   });
+});
+
+it("defines the four new tools tagged with the right scope", () => {
+  const byName = Object.fromEntries(pioTools.map((t) => [t.function.name, t]));
+  expect(byName["wait_for_pricing_job"].scope).toBe("operator");
+  expect(byName["submit_research_quote"].scope).toBe("operator");
+  expect(byName["request_dynamic_coverage"].scope).toBe("buyer");
+  expect(byName["confirm_dynamic_purchase"].scope).toBe("buyer");
+  // every tool has a scope and an object schema
+  for (const t of pioTools) {
+    expect(["buyer", "operator"]).toContain(t.scope);
+    expect(t.function.parameters.type).toBe("object");
+  }
+});
+
+it("routes the new tool calls to the matching client methods", async () => {
+  const client = {
+    waitForPricingJob: vi.fn(async () => ({ jobs: [] })),
+    submitResearchQuote: vi.fn(async () => ({ accepted: true })),
+    requestDynamicCoverage: vi.fn(async () => ({ accepted: true, quoteId: "q" })),
+    confirmDynamicPurchase: vi.fn(async () => ({ accepted: true }))
+  } as unknown as import("../hermes/pio-client").PioClient;
+
+  await dispatchPioToolCall(client, "wait_for_pricing_job", { since: "2026-06-22T00:00:00Z" });
+  await dispatchPioToolCall(client, "submit_research_quote", { quoteId: "q", riskScore: 0.5, evidence: [], toolName: "Firecrawl" });
+  await dispatchPioToolCall(client, "request_dynamic_coverage", { productId: "rain_event", customerName: "c" });
+  await dispatchPioToolCall(client, "confirm_dynamic_purchase", { agentId: "a", quoteId: "q", idempotencyKey: "i", authorization: "confirm_purchase", maximumPremium: { amount: 1, currency: "USD" } });
+
+  expect((client as any).waitForPricingJob).toHaveBeenCalledWith("2026-06-22T00:00:00Z");
+  expect((client as any).submitResearchQuote).toHaveBeenCalledWith("q", { quoteId: "q", riskScore: 0.5, evidence: [], toolName: "Firecrawl" });
+  expect((client as any).requestDynamicCoverage).toHaveBeenCalled();
+  expect((client as any).confirmDynamicPurchase).toHaveBeenCalled();
 });
 
 describe("dispatchPioToolCall", () => {

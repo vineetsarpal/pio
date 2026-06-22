@@ -27,8 +27,11 @@ export type JsonSchema = {
   required?: string[];
 };
 
+export type ToolScope = "buyer" | "operator";
+
 export type PioTool = {
   type: "function";
+  scope: ToolScope;
   function: {
     name: string;
     description: string;
@@ -72,6 +75,7 @@ const coverageRequest: JsonSchema = {
 export const pioTools: PioTool[] = [
   {
     type: "function",
+    scope: "buyer",
     function: {
       name: "request_coverage",
       description:
@@ -90,6 +94,7 @@ export const pioTools: PioTool[] = [
   },
   {
     type: "function",
+    scope: "buyer",
     function: {
       name: "confirm_purchase",
       description:
@@ -110,6 +115,7 @@ export const pioTools: PioTool[] = [
   },
   {
     type: "function",
+    scope: "buyer",
     function: {
       name: "purchase_off_session",
       description:
@@ -126,6 +132,7 @@ export const pioTools: PioTool[] = [
   },
   {
     type: "function",
+    scope: "buyer",
     function: {
       name: "get_policy",
       description: "Read a single policy's current status and payment/workflow ledger. Requires the buyer agent key.",
@@ -138,6 +145,7 @@ export const pioTools: PioTool[] = [
   },
   {
     type: "function",
+    scope: "operator",
     function: {
       name: "settle_policy",
       description:
@@ -151,10 +159,79 @@ export const pioTools: PioTool[] = [
   },
   {
     type: "function",
+    scope: "operator",
     function: {
       name: "get_review_queue",
       description: "Operator action: list ledger-derived exceptions needing attention (e.g. failed payouts). Requires the operator key.",
       parameters: { type: "object", properties: {} }
+    }
+  },
+  {
+    type: "function", scope: "operator",
+    function: {
+      name: "wait_for_pricing_job",
+      description: "Long-poll for the next pending dynamic-pricing job(s). Returns immediately if one is waiting, else after ~25s. Pass the createdAt of the last job you handled as `since` to avoid re-seeing it.",
+      parameters: { type: "object", properties: { since: { type: "string", description: "ISO 8601 cursor; return jobs newer than this." } } }
+    }
+  },
+  {
+    type: "function", scope: "operator",
+    function: {
+      name: "submit_research_quote",
+      description: "Submit a grounded risk memo for a pending quote. PIO maps riskScore (0..1) into the typed premium band and clamps it; empty evidence fails closed to PIO's deterministic adapter. Cite every claim.",
+      parameters: {
+        type: "object",
+        properties: {
+          quoteId: { type: "string" },
+          riskScore: { type: "number", description: "0..1; higher = more likely the trigger fires." },
+          evidence: {
+            type: "array",
+            items: { type: "object", properties: {
+              url: { type: "string" }, title: { type: "string" }, snippet: { type: "string" }, retrievedAt: { type: "string" }
+            }, required: ["url", "title", "snippet", "retrievedAt"] }
+          },
+          factors: { type: "array", items: { type: "string" } },
+          toolName: { type: "string" },
+          model: { type: "string" }
+        },
+        required: ["quoteId", "riskScore", "evidence", "toolName"]
+      }
+    }
+  },
+  {
+    type: "function", scope: "buyer",
+    function: {
+      name: "request_dynamic_coverage",
+      description: "Request a quote that an operator prices from live web research. Returns a quoteId immediately with no premium; poll get_policy until status is policy_quoted.",
+      parameters: {
+        type: "object",
+        properties: {
+          productId: { type: "string", enum: ["rain_event", "flight_delay"] },
+          customerName: { type: "string" }, eventName: { type: "string" }, locationName: { type: "string" },
+          latitude: { type: "number" }, longitude: { type: "number" },
+          eventStart: { type: "string" }, eventEnd: { type: "string" },
+          passengerName: { type: "string" }, airline: { type: "string" }, flightNumber: { type: "string" },
+          originAirport: { type: "string" }, destinationAirport: { type: "string" },
+          departureTime: { type: "string" }, arrivalTime: { type: "string" },
+          desiredPayout: money, deductible: money, maximumPremium: money
+        },
+        required: ["productId", "customerName", "desiredPayout"]
+      }
+    }
+  },
+  {
+    type: "function", scope: "buyer",
+    function: {
+      name: "confirm_dynamic_purchase",
+      description: "Buy a priced dynamic quote by replaying its stored premium. Requires the buyer agent key. Idempotent on idempotencyKey.",
+      parameters: {
+        type: "object",
+        properties: {
+          agentId: { type: "string" }, quoteId: { type: "string" }, idempotencyKey: { type: "string" },
+          authorization: { type: "string", enum: ["confirm_purchase"] }, maximumPremium: money
+        },
+        required: ["agentId", "quoteId", "idempotencyKey", "authorization", "maximumPremium"]
+      }
     }
   }
 ];
@@ -181,6 +258,14 @@ export function dispatchPioToolCall(
       return client.settlePolicy(String(args.policyId));
     case "get_review_queue":
       return client.getReviewQueue();
+    case "wait_for_pricing_job":
+      return client.waitForPricingJob(args.since === undefined ? undefined : String(args.since));
+    case "submit_research_quote":
+      return client.submitResearchQuote(String(args.quoteId), args as Parameters<PioClient["submitResearchQuote"]>[1]);
+    case "request_dynamic_coverage":
+      return client.requestDynamicCoverage(args as Parameters<PioClient["requestDynamicCoverage"]>[0]);
+    case "confirm_dynamic_purchase":
+      return client.confirmDynamicPurchase(args as Parameters<PioClient["confirmDynamicPurchase"]>[0]);
     default:
       return Promise.reject(new Error(`Unknown PIO tool: ${name}`));
   }

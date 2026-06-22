@@ -3,16 +3,20 @@ import { handlePioToolCall, pioMcpToolList } from "../hermes/mcp-tools";
 import type { PioClient } from "../hermes/pio-client";
 
 describe("pioMcpToolList", () => {
-  it("exposes the six real PIO tools with object input schemas", () => {
+  it("exposes all PIO tools with object input schemas", () => {
     const tools = pioMcpToolList();
     expect(tools.map((tool) => tool.name).sort()).toEqual(
       [
+        "confirm_dynamic_purchase",
         "confirm_purchase",
         "get_policy",
         "get_review_queue",
         "purchase_off_session",
         "request_coverage",
-        "settle_policy"
+        "request_dynamic_coverage",
+        "settle_policy",
+        "submit_research_quote",
+        "wait_for_pricing_job"
       ].sort()
     );
     for (const tool of tools) {
