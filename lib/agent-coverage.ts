@@ -37,7 +37,10 @@ export function handleAgentCoverageRequest(input: unknown): AgentCoverageRespons
   }
 
   const request = parsed.request;
-  if (request.desiredPayout.currency !== "USD" || request.maximumPremium?.currency !== "USD") {
+  if (
+    request.desiredPayout.currency !== "USD" ||
+    (request.maximumPremium && request.maximumPremium.currency !== "USD")
+  ) {
     return {
       accepted: false,
       reasonCode: "unsupported_currency",

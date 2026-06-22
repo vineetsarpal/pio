@@ -19,7 +19,7 @@
  * (settle_policy, get_review_queue) let the trusted operator run the book.
  */
 
-import type { PioClient } from "./pio-client";
+import type { PioClient } from "./pio-client.js";
 
 export type JsonSchema = {
   type: "object";
