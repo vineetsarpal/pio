@@ -187,6 +187,9 @@ export type Policy = {
   riskSource?: string;
   riskScore?: number;
   riskFactors?: string[];
+  riskCitations?: { url: string; title: string; snippet: string; retrievedAt: string }[];
+  pricingMode?: "static" | "dynamic";
+  pricedBy?: "operator_research" | "deterministic_fallback";
   status: PolicyStatus;
   stripePaymentReference?: string;
   stripePayoutReference?: string;

@@ -105,6 +105,8 @@ export type FlightDelayQuoteInput = {
 
 export type ProductQuoteInput = RainEventQuoteInput | FlightDelayQuoteInput;
 
+export type Citation = { url: string; title: string; snippet: string; retrievedAt: string };
+
 export type RiskAssessment = {
   productId: CoverageProductId;
   source: string;
@@ -118,6 +120,7 @@ export type RiskAssessment = {
     label: string;
     value: string;
   };
+  citations?: Citation[];
 };
 
 export type ApiCallTelemetry = {
