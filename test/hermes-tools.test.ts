@@ -12,6 +12,7 @@ describe("pioTools", () => {
         "get_policy",
         "get_review_queue",
         "purchase_off_session",
+        "report_progress",
         "request_coverage",
         "request_dynamic_coverage",
         "settle_policy",
@@ -59,6 +60,14 @@ it("routes the new tool calls to the matching client methods", async () => {
   expect((client as any).submitResearchQuote).toHaveBeenCalledWith("q", { quoteId: "q", riskScore: 0.5, evidence: [], toolName: "Firecrawl" });
   expect((client as any).requestDynamicCoverage).toHaveBeenCalled();
   expect((client as any).confirmDynamicPurchase).toHaveBeenCalled();
+});
+
+it("defines report_progress (operator) and routes it", async () => {
+  const byName = Object.fromEntries(pioTools.map((t) => [t.function.name, t]));
+  expect(byName["report_progress"].scope).toBe("operator");
+  const client = { reportProgress: vi.fn(async () => ({ accepted: true })) } as unknown as import("../hermes/pio-client").PioClient;
+  await dispatchPioToolCall(client, "report_progress", { quoteId: "q", step: "researching", detail: "d" });
+  expect((client as any).reportProgress).toHaveBeenCalledWith("q", "researching", "d");
 });
 
 describe("dispatchPioToolCall", () => {

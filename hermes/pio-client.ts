@@ -150,6 +150,14 @@ export class PioClient {
     });
   }
 
+  /** Operator scope: post a best-effort progress milestone for the live intake feed. */
+  async reportProgress(quoteId: string, step: string, detail?: string) {
+    return this.send("POST", `/api/operator/quote/${encodeURIComponent(quoteId)}/progress`, {
+      body: detail === undefined ? { step } : { step, detail },
+      key: this.requireOperatorKey()
+    });
+  }
+
   private requireAgentKey(): string {
     if (!this.agentKey) throw new Error("agentKey is required for buyer-scope calls.");
     return this.agentKey;

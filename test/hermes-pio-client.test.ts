@@ -184,4 +184,15 @@ describe("PioClient", () => {
       })
     ).rejects.toThrow("agentKey is required");
   });
+
+  it("reports progress with the operator key", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ accepted: true }));
+    const client = clientWith(fetchMock as unknown as typeof fetch);
+    await client.reportProgress("pio-pol-rain-x", "researching", "Toronto rain");
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://pio-platform.vercel.app/api/operator/quote/pio-pol-rain-x/progress");
+    expect(init.method).toBe("POST");
+    expect((init.headers as Record<string, string>).authorization).toBe("Bearer pio_operator_key_123");
+    expect(JSON.parse(init.body as string)).toEqual({ step: "researching", detail: "Toronto rain" });
+  });
 });

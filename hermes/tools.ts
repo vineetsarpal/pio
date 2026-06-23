@@ -220,6 +220,16 @@ export const pioTools: PioTool[] = [
     }
   },
   {
+    type: "function", scope: "operator",
+    function: {
+      name: "report_progress",
+      description: "Best-effort: post a one-line progress milestone for a pricing job so the buyer sees live status (e.g. 'researching', 'found 3 sources', 'scoring'). Never blocks pricing.",
+      parameters: { type: "object", properties: {
+        quoteId: { type: "string" }, step: { type: "string" }, detail: { type: "string" }
+      }, required: ["quoteId", "step"] }
+    }
+  },
+  {
     type: "function", scope: "buyer",
     function: {
       name: "confirm_dynamic_purchase",
@@ -266,6 +276,8 @@ export function dispatchPioToolCall(
       return client.requestDynamicCoverage(args as Parameters<PioClient["requestDynamicCoverage"]>[0]);
     case "confirm_dynamic_purchase":
       return client.confirmDynamicPurchase(args as Parameters<PioClient["confirmDynamicPurchase"]>[0]);
+    case "report_progress":
+      return client.reportProgress(String(args.quoteId), String(args.step), args.detail === undefined ? undefined : String(args.detail));
     default:
       return Promise.reject(new Error(`Unknown PIO tool: ${name}`));
   }

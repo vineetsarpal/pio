@@ -3,10 +3,10 @@ import { activeScopesFromEnv, handlePioToolCall, pioMcpToolList } from "../herme
 import type { PioClient } from "../hermes/pio-client";
 
 describe("pioMcpToolList", () => {
-  it("lists all ten tools when no scope filter is given", () => {
+  it("lists all eleven tools when no scope filter is given", () => {
     expect(pioMcpToolList().map((t) => t.name).sort()).toEqual([
       "confirm_dynamic_purchase", "confirm_purchase", "get_policy", "get_review_queue",
-      "purchase_off_session", "request_coverage", "request_dynamic_coverage",
+      "purchase_off_session", "report_progress", "request_coverage", "request_dynamic_coverage",
       "settle_policy", "submit_research_quote", "wait_for_pricing_job"
     ].sort());
     for (const tool of pioMcpToolList()) {
@@ -17,7 +17,7 @@ describe("pioMcpToolList", () => {
 
   it("lists only operator tools for the operator scope", () => {
     expect(pioMcpToolList(["operator"]).map((t) => t.name).sort()).toEqual(
-      ["get_review_queue", "settle_policy", "submit_research_quote", "wait_for_pricing_job"].sort()
+      ["get_review_queue", "report_progress", "settle_policy", "submit_research_quote", "wait_for_pricing_job"].sort()
     );
   });
 
