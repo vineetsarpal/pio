@@ -3,17 +3,21 @@ import { ArrowRight, ClipboardCheck, TriangleAlert } from "lucide-react";
 import { formatMoney } from "@/components/format";
 import { getPolicyStore } from "@/lib/policy-store-factory";
 import type { OperatorReviewItem, Policy } from "@/lib/types";
+import { pricingFeedView } from "@/lib/ops-feed";
+import { PricingQueue } from "@/components/PricingQueue";
 
 export const dynamic = "force-dynamic";
 
 export default async function OpsPage() {
   let policies: Policy[] = [];
   let reviews: OperatorReviewItem[] = [];
+  let feed: ReturnType<typeof pricingFeedView> = { pending: [], recentlyPriced: [] };
   let error: string | undefined;
 
   try {
     const store = getPolicyStore();
     [policies, reviews] = await Promise.all([store.listPolicies(), store.getOperatorReviewQueue()]);
+    feed = pricingFeedView(await store.listPricingJobs());
   } catch (caught) {
     error = caught instanceof Error ? caught.message : "Unable to load the policy store.";
   }
@@ -46,6 +50,8 @@ export default async function OpsPage() {
           </div>
         ) : (
           <>
+            <PricingQueue initial={feed} />
+
             <section className="panel p-5">
               <p className="kicker">Open operator reviews</p>
               {reviews.length === 0 ? (
