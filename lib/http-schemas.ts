@@ -74,6 +74,8 @@ export const dynamicCoverageRequestSchema = z.intersection(
   z.object({ pricing: z.literal("dynamic") })
 );
 
+export const progressEventSchema = z.object({ step: z.string().min(1), detail: z.string().optional() });
+
 export const riskMemoSchema = z.object({
   riskScore: z.number().min(0).max(1),
   evidence: z.array(z.object({

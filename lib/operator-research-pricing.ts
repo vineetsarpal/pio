@@ -3,7 +3,7 @@ import { productQuoteId, quoteCoverageProduct, validateProductQuoteInput } from 
 import type { PolicyStore } from "./policy-store";
 import type { CoverageProductId, Money, Policy } from "./types";
 import { adjustmentFromScore, clampScore } from "./premium-pricing";
-import { withProgress } from "./pricing-job";
+import { withProgress, type PricingJob } from "./pricing-job";
 
 export type RiskMemo = {
   riskScore: number;
@@ -56,13 +56,24 @@ export async function createDynamicPricingJob(
   const quoteId = productQuoteId(input);
   const quote = await quoteCoverageProduct(input, adapters, { now: new Date(now) });
   const baseline = { risk: quote.risk, premium: quote.policy.premium };
-  let job = { quoteId, productInput: input, status: "pending" as const, createdAt: now, baseline };
+  let job: PricingJob = { quoteId, productInput: input, status: "pending" as const, createdAt: now, baseline };
   job = withProgress(job, { at: now, source: "pio", step: "weather_api_called",
     detail: `${quote.risk.sourceLabel}: ${quote.risk.observedMetric.label} ${quote.risk.observedMetric.value}` });
   job = withProgress(job, { at: now, source: "pio", step: "baseline_computed",
     detail: `Baseline premium $${baseline.premium.amount}` });
   await store.savePricingJob(job);
   return { quoteId, status: "quote_requested", baseline };
+}
+
+export async function appendJobProgress(
+  { quoteId, step, detail, now }: { quoteId: string; step: string; detail?: string; now: string },
+  { store }: { store: PolicyStore }
+): Promise<{ accepted: true } | { accepted: false; reasonCode: "job_not_found" | "already_priced" }> {
+  const job = await store.getPricingJob(quoteId);
+  if (!job) return { accepted: false, reasonCode: "job_not_found" };
+  if (job.status === "priced") return { accepted: false, reasonCode: "already_priced" };
+  await store.savePricingJob(withProgress(job, { at: now, source: "operator", step, detail }));
+  return { accepted: true };
 }
 
 export async function pricePricingJob(

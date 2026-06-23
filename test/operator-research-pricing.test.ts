@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { riskAssessmentFromMemo, researchRiskAdapters, createDynamicPricingJob } from "../lib/operator-research-pricing";
+import { riskAssessmentFromMemo, researchRiskAdapters, createDynamicPricingJob, appendJobProgress } from "../lib/operator-research-pricing";
 import { InMemoryPolicyStore } from "../lib/policy-store";
 import { CoverageQuoteValidationError, DemoWeatherPricingApi, DemoFlightStatusPricingApi } from "../lib/coverage-products";
 import { adjustmentFromScore } from "../lib/premium-pricing";
@@ -110,6 +110,18 @@ it("createDynamicPricingJob attaches a baseline and two pio progress events", as
   expect(job?.baseline?.premium.amount).toBe(res.baseline?.premium.amount);
   expect((job?.progress ?? []).map((p) => p.step)).toEqual(["weather_api_called", "baseline_computed"]);
   expect((job?.progress ?? []).every((p) => p.source === "pio")).toBe(true);
+});
+
+it("appendJobProgress appends an operator event; rejects unknown/priced", async () => {
+  const store = new InMemoryPolicyStore();
+  const input = { productId: "rain_event", customerName: "C", eventName: "E", locationName: "L",
+    latitude: 1, longitude: 2, eventStart: "2030-01-01T00:00:00Z", eventEnd: "2030-01-01T06:00:00Z",
+    desiredPayout: { amount: 500, currency: "USD" } } as never;
+  const { quoteId } = await createDynamicPricingJob(input, { store, now: "2026-06-22T00:00:00Z", adapters: { weather: new DemoWeatherPricingApi() } });
+  expect(await appendJobProgress({ quoteId, step: "researching", detail: "Toronto rain", now: "2026-06-22T00:00:30Z" }, { store })).toEqual({ accepted: true });
+  const job = await store.getPricingJob(quoteId);
+  expect((job?.progress ?? []).some((p) => p.source === "operator" && p.step === "researching")).toBe(true);
+  expect(await appendJobProgress({ quoteId: "nope", step: "x", now: "t" }, { store })).toEqual({ accepted: false, reasonCode: "job_not_found" });
 });
 
 it("fail-closed reuses the stored baseline premium and records it on the job (no network)", async () => {
