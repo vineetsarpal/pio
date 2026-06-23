@@ -4,6 +4,7 @@ import type { PolicyStore } from "./policy-store";
 import type { CoverageProductId, Money, Policy } from "./types";
 import { adjustmentFromScore, clampScore } from "./premium-pricing";
 import { withProgress, type PricingJob } from "./pricing-job";
+import { triggerHermesPricingWebhook } from "./hermes-pricing-webhook";
 
 export type RiskMemo = {
   riskScore: number;
@@ -62,6 +63,7 @@ export async function createDynamicPricingJob(
   job = withProgress(job, { at: now, source: "pio", step: "baseline_computed",
     detail: `Baseline premium $${baseline.premium.amount}` });
   await store.savePricingJob(job);
+  await triggerHermesPricingWebhook(job);
   return { quoteId, status: "quote_requested", baseline };
 }
 
