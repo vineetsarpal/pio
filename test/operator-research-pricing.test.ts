@@ -118,7 +118,20 @@ it("fail-closed reuses the stored baseline premium and records it on the job (no
     latitude: 1, longitude: 2, eventStart: "2030-01-01T00:00:00Z", eventEnd: "2030-01-01T06:00:00Z",
     desiredPayout: { amount: 500, currency: "USD" } } as never;
   const { quoteId, baseline } = await createDynamicPricingJob(input, { store, now: "2026-06-22T00:00:00Z", adapters: { weather: new DemoWeatherPricingApi() } });
-  const res = await pricePricingJob({ quoteId, now: "2026-06-22T00:01:00Z", memo: { riskScore: 0.9, evidence: [], toolName: "t" } }, { store });
+  // Inject a sentinel that throws if any adapter method is invoked, proving baseline is reused with no fallback call
+  const neverCalled = {
+    weather: {
+      getRainEventRisk: async () => {
+        throw new Error("fallback adapter called — baseline was not reused");
+      }
+    },
+    flight: {
+      getFlightDelayRisk: async () => {
+        throw new Error("fallback adapter called — baseline was not reused");
+      }
+    }
+  } as never;
+  const res = await pricePricingJob({ quoteId, now: "2026-06-22T00:01:00Z", memo: { riskScore: 0.9, evidence: [], toolName: "t" } }, { store, adapters: neverCalled });
   expect(res.accepted).toBe(true);
   const job = await store.getPricingJob(quoteId);
   expect(job?.status).toBe("priced");
