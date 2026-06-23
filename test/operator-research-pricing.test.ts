@@ -37,7 +37,7 @@ it("createDynamicPricingJob persists a pending job and returns the stable quoteI
   const input = { productId: "rain_event", customerName: "C", eventName: "E", locationName: "L",
     latitude: 1, longitude: 2, eventStart: "2030-01-01T00:00:00Z", eventEnd: "2030-01-01T06:00:00Z",
     desiredPayout: { amount: 500, currency: "USD" } } as never;
-  const res = await createDynamicPricingJob(input, { store, now: "2026-06-22T00:00:00Z" });
+  const res = await createDynamicPricingJob(input, { store, now: "2026-06-22T00:00:00Z", adapters: { weather: new DemoWeatherPricingApi() } });
   expect(res.status).toBe("quote_requested");
   const job = await store.getPricingJob(res.quoteId);
   expect(job?.status).toBe("pending");
@@ -57,7 +57,7 @@ async function seedJob(store: InMemoryPolicyStore) {
   const input = { productId: "rain_event", customerName: "C", eventName: "E", locationName: "L",
     latitude: 1, longitude: 2, eventStart: "2030-01-01T00:00:00Z", eventEnd: "2030-01-01T06:00:00Z",
     desiredPayout: { amount: 500, currency: "USD" } } as never;
-  return createDynamicPricingJob(input, { store, now: "2026-06-22T00:00:00Z" });
+  return createDynamicPricingJob(input, { store, now: "2026-06-22T00:00:00Z", adapters: { weather: new DemoWeatherPricingApi() } });
 }
 
 it("prices a job from a grounded memo within the band and persists the policy", async () => {
@@ -97,4 +97,17 @@ it("rejects an unknown or already-priced job", async () => {
   expect(first.accepted).toBe(true);
   const second = await pricePricingJob({ quoteId, now: "2026-06-22T00:02:00Z", memo: { riskScore: 0.5, evidence: [], toolName: "t" } }, { store, adapters: demoAdapters });
   expect(second).toEqual({ accepted: false, reasonCode: "already_priced" });
+});
+
+it("createDynamicPricingJob attaches a baseline and two pio progress events", async () => {
+  const store = new InMemoryPolicyStore();
+  const input = { productId: "rain_event", customerName: "C", eventName: "E", locationName: "L",
+    latitude: 1, longitude: 2, eventStart: "2030-01-01T00:00:00Z", eventEnd: "2030-01-01T06:00:00Z",
+    desiredPayout: { amount: 500, currency: "USD" } } as never;
+  const res = await createDynamicPricingJob(input, { store, now: "2026-06-22T00:00:00Z", adapters: { weather: new DemoWeatherPricingApi() } });
+  expect(res.baseline?.premium.amount).toBeGreaterThan(0);
+  const job = await store.getPricingJob(res.quoteId);
+  expect(job?.baseline?.premium.amount).toBe(res.baseline?.premium.amount);
+  expect((job?.progress ?? []).map((p) => p.step)).toEqual(["weather_api_called", "baseline_computed"]);
+  expect((job?.progress ?? []).every((p) => p.source === "pio")).toBe(true);
 });

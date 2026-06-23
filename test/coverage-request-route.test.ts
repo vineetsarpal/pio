@@ -6,6 +6,16 @@ vi.mock("../lib/policy-store-factory", () => ({
   getPolicyStore: () => hoisted.storeRef.current
 }));
 
+// Mock quoteCoverageProduct to use DemoWeatherPricingApi (avoids live network calls in route tests)
+vi.mock("../lib/coverage-products", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/coverage-products")>();
+  return {
+    ...actual,
+    quoteCoverageProduct: (input: Parameters<typeof actual.quoteCoverageProduct>[0], _adapters: Parameters<typeof actual.quoteCoverageProduct>[1], options: Parameters<typeof actual.quoteCoverageProduct>[2]) =>
+      actual.quoteCoverageProduct(input, { weather: new actual.DemoWeatherPricingApi() }, options)
+  };
+});
+
 import { POST } from "../app/api/agent/coverage-request/route";
 import { InMemoryPolicyStore } from "../lib/policy-store";
 

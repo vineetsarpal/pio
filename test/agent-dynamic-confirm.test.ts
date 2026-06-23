@@ -30,7 +30,7 @@ const memo = {
 };
 
 async function seedPricedPolicy(store: InMemoryPolicyStore): Promise<string> {
-  const { quoteId } = await createDynamicPricingJob(productInput, { store, now: NOW });
+  const { quoteId } = await createDynamicPricingJob(productInput, { store, now: NOW, adapters: { weather: new DemoWeatherPricingApi() } });
   await pricePricingJob(
     { quoteId, memo, now: NOW },
     { store, adapters: { weather: new DemoWeatherPricingApi() } }

@@ -1,8 +1,9 @@
 import type { Citation, ProductQuoteInput, ProductRiskAdapters, RiskAssessment } from "./coverage-products";
 import { productQuoteId, quoteCoverageProduct, validateProductQuoteInput } from "./coverage-products";
 import type { PolicyStore } from "./policy-store";
-import type { CoverageProductId, Policy } from "./types";
+import type { CoverageProductId, Money, Policy } from "./types";
 import { adjustmentFromScore, clampScore } from "./premium-pricing";
+import { withProgress } from "./pricing-job";
 
 export type RiskMemo = {
   riskScore: number;
@@ -49,12 +50,19 @@ export function researchRiskAdapters(assessment: RiskAssessment): ProductRiskAda
 
 export async function createDynamicPricingJob(
   input: ProductQuoteInput,
-  { store, now }: { store: PolicyStore; now: string }
-): Promise<{ quoteId: string; status: "quote_requested" }> {
+  { store, now, adapters }: { store: PolicyStore; now: string; adapters?: ProductRiskAdapters }
+): Promise<{ quoteId: string; status: "quote_requested"; baseline: { risk: RiskAssessment; premium: Money } }> {
   validateProductQuoteInput(input, new Date(now));
   const quoteId = productQuoteId(input);
-  await store.savePricingJob({ quoteId, productInput: input, status: "pending", createdAt: now });
-  return { quoteId, status: "quote_requested" };
+  const quote = await quoteCoverageProduct(input, adapters, { now: new Date(now) });
+  const baseline = { risk: quote.risk, premium: quote.policy.premium };
+  let job = { quoteId, productInput: input, status: "pending" as const, createdAt: now, baseline };
+  job = withProgress(job, { at: now, source: "pio", step: "weather_api_called",
+    detail: `${quote.risk.sourceLabel}: ${quote.risk.observedMetric.label} ${quote.risk.observedMetric.value}` });
+  job = withProgress(job, { at: now, source: "pio", step: "baseline_computed",
+    detail: `Baseline premium $${baseline.premium.amount}` });
+  await store.savePricingJob(job);
+  return { quoteId, status: "quote_requested", baseline };
 }
 
 export async function pricePricingJob(
