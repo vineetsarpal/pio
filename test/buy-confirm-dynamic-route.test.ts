@@ -3,6 +3,7 @@ import { InMemoryPolicyStore } from "@/lib/policy-store";
 import { createDynamicPricingJob, pricePricingJob } from "@/lib/operator-research-pricing";
 import { DemoWeatherPricingApi } from "@/lib/coverage-products";
 import { SimulatedHermesStripeSkillsAdapter } from "./fakes";
+import { createLiveStripeCheckoutAdapterFromEnv } from "@/lib/stripe-checkout";
 
 /**
  * Route test for POST /api/buy/confirm-dynamic/[quoteId].
@@ -46,7 +47,7 @@ vi.mock("@/lib/policy-store-factory", () => ({
 
 // Mock stripe-checkout so we return a fake adapter (avoids real Stripe calls)
 vi.mock("@/lib/stripe-checkout", () => ({
-  createLiveStripeCheckoutAdapterFromEnv: () => new SimulatedHermesStripeSkillsAdapter()
+  createLiveStripeCheckoutAdapterFromEnv: vi.fn(() => new SimulatedHermesStripeSkillsAdapter())
 }));
 
 // Lazily import the route after mocks are registered
@@ -156,5 +157,29 @@ describe("POST /api/buy/confirm-dynamic/[quoteId]", () => {
     const body = await response.json();
     expect(body.accepted).toBe(false);
     expect(body.reasonCode).toBe("agent_seed_not_configured");
+  });
+
+  it("returns 503 + stripe_not_configured when Stripe adapter factory throws", async () => {
+    vi.mocked(createLiveStripeCheckoutAdapterFromEnv).mockImplementationOnce(() => {
+      throw new Error("Stripe API key not configured");
+    });
+
+    const request = new Request(
+      `https://pio.test/api/buy/confirm-dynamic/${pricedQuoteId}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ maximumPremium: { amount: storedPremiumAmount + 100, currency: "USD" } })
+      }
+    );
+
+    const response = await buyConfirmDynamic(request, {
+      params: Promise.resolve({ quoteId: pricedQuoteId })
+    });
+
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.accepted).toBe(false);
+    expect(body.reasonCode).toBe("stripe_not_configured");
   });
 });
