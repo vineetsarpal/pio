@@ -280,4 +280,11 @@ describe.each(harnesses)("$name conformance", ({ create }) => {
     expect((await store.getPricingJob("q1"))?.status).toBe("priced");
     expect((await store.listPendingPricingJobs()).map((j) => j.quoteId)).toEqual(["q2"]);
   });
+
+  it("lists all pricing jobs newest-first across stores", async () => {
+    const store = await create();
+    await store.savePricingJob({ quoteId: "a", productInput: {} as never, status: "pending", createdAt: "2026-06-22T00:00:01Z" });
+    await store.savePricingJob({ quoteId: "b", productInput: {} as never, status: "priced", createdAt: "2026-06-22T00:00:02Z" });
+    expect((await store.listPricingJobs()).map((j) => j.quoteId)).toEqual(["b", "a"]);
+  });
 });

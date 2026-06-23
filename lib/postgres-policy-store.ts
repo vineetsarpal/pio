@@ -300,4 +300,9 @@ export class PostgresPolicyStore implements PolicyStore {
     const rows = await this.db.select({ data: pricingJobs.data }).from(pricingJobs).where(where).orderBy(asc(pricingJobs.createdAt));
     return rows.map((r) => r.data);
   }
+
+  async listPricingJobs(): Promise<PricingJob[]> {
+    const rows = await this.db.select({ data: pricingJobs.data }).from(pricingJobs).orderBy(desc(pricingJobs.createdAt));
+    return rows.map((r) => r.data);
+  }
 }

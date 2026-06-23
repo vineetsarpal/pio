@@ -75,6 +75,7 @@ export interface PolicyStore {
   savePricingJob(job: PricingJob): Promise<void>;
   getPricingJob(quoteId: string): Promise<PricingJob | undefined>;
   listPendingPricingJobs(since?: string): Promise<PricingJob[]>;
+  listPricingJobs(): Promise<PricingJob[]>;
 }
 
 export class InMemoryPolicyStore implements PolicyStore {
@@ -240,6 +241,12 @@ export class InMemoryPolicyStore implements PolicyStore {
 
   async listPolicies(): Promise<Policy[]> {
     return Array.from(this.policies.values()).map((policy) => structuredClone(policy));
+  }
+
+  async listPricingJobs(): Promise<PricingJob[]> {
+    return Array.from(this.pricingJobs.values())
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((job) => structuredClone(job));
   }
 }
 
