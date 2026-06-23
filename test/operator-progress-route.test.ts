@@ -7,7 +7,7 @@ vi.mock("../lib/policy-store-factory", () => ({
 
 import { POST as progress } from "../app/api/operator/quote/[quoteId]/progress/route";
 import { InMemoryPolicyStore } from "../lib/policy-store";
-import { createDynamicPricingJob } from "../lib/operator-research-pricing";
+import { createDynamicPricingJob, pricePricingJob } from "../lib/operator-research-pricing";
 import { DemoWeatherPricingApi } from "../lib/coverage-products";
 
 const originalKey = process.env.PIO_OPERATOR_KEY;
@@ -70,5 +70,17 @@ describe("POST /api/operator/quote/[quoteId]/progress", () => {
     expect(body.accepted).toBe(true);
     const job = await store.getPricingJob(quoteId);
     expect((job?.progress ?? []).some((p: { source: string; step: string }) => p.source === "operator" && p.step === "researching")).toBe(true);
+  });
+
+  it("returns 409 for an already-priced job", async () => {
+    const store = hoisted.storeRef.current as InMemoryPolicyStore;
+    const { quoteId } = await seedJob(store);
+    // Transition job to priced status
+    await pricePricingJob({ quoteId, now: "2026-06-22T00:01:00Z", memo: { riskScore: 0.5, evidence: [], toolName: "test" } }, { store, adapters: { weather: new DemoWeatherPricingApi() } });
+    const response = await progress(progressRequest(quoteId), {
+      params: Promise.resolve({ quoteId })
+    });
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ reasonCode: "already_priced" });
   });
 });
