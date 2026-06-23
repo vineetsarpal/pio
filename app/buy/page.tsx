@@ -122,6 +122,7 @@ export default function BuyPage() {
   const [isBuying, setIsBuying] = useState(false);
 
   const selectedProduct = products.find((product) => product.id === activeProduct) ?? products[0];
+  const pollQuoteId = state.phase === "intake" ? state.quoteId : undefined;
 
   async function handleDynamicQuote(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -149,7 +150,7 @@ export default function BuyPage() {
       } catch { /* keep polling */ }
     }, 2000);
     return () => clearInterval(id);
-  }, [state.phase, (state as any).quoteId]);
+  }, [state.phase, pollQuoteId]);
 
   async function buyDynamic() {
     if (state.phase !== "priced") return;
@@ -214,6 +215,8 @@ export default function BuyPage() {
                   setActiveProduct(product.id);
                   setPremiumEstimate(defaultPremiumEstimate(product.id));
                   dispatch({ type: "reset" });
+                  setBuyError(undefined);
+                  setIsBuying(false);
                 }}
               >
                 <div className="flex items-start gap-4">
