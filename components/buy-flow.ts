@@ -13,10 +13,13 @@ export type DynamicQuoteState =
 export type DynamicQuoteAction =
   | { type: "requested"; quoteId: string; baseline?: Baseline }
   | { type: "statusPolled"; status: QuoteStatusView }
-  | { type: "failed"; message: string };
+  | { type: "failed"; message: string }
+  | { type: "reset" };
 
 export function dynamicQuoteReducer(state: DynamicQuoteState, action: DynamicQuoteAction): DynamicQuoteState {
   switch (action.type) {
+    case "reset":
+      return { phase: "idle" };
     case "requested":
       return { phase: "intake", quoteId: action.quoteId, baseline: action.baseline, progress: [] };
     case "failed":

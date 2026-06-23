@@ -19,3 +19,14 @@ it("intake stays intake while pending, advances to priced when status says so", 
 it("failed → error", () => {
   expect(dynamicQuoteReducer({ phase: "idle" }, { type: "failed", message: "boom" })).toEqual({ phase: "error", message: "boom" });
 });
+
+it("reset from any non-idle state returns idle", () => {
+  const intake = dynamicQuoteReducer({ phase: "idle" }, { type: "requested", quoteId: "q" });
+  expect(dynamicQuoteReducer(intake, { type: "reset" })).toEqual({ phase: "idle" });
+
+  const priced = { phase: "priced" as const, quoteId: "q", premium: { amount: 64, currency: "USD" as const }, citations: [], progress: [] };
+  expect(dynamicQuoteReducer(priced, { type: "reset" })).toEqual({ phase: "idle" });
+
+  const error = { phase: "error" as const, message: "boom" };
+  expect(dynamicQuoteReducer(error, { type: "reset" })).toEqual({ phase: "idle" });
+});

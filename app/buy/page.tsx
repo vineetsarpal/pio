@@ -118,6 +118,8 @@ export default function BuyPage() {
   const [activeProduct, setActiveProduct] = useState<ProductId>("rain_event");
   const [state, dispatch] = useReducer(dynamicQuoteReducer, { phase: "idle" });
   const [premiumEstimate, setPremiumEstimate] = useState(() => defaultPremiumEstimate("rain_event"));
+  const [buyError, setBuyError] = useState<string | undefined>();
+  const [isBuying, setIsBuying] = useState(false);
 
   const selectedProduct = products.find((product) => product.id === activeProduct) ?? products[0];
 
@@ -151,12 +153,24 @@ export default function BuyPage() {
 
   async function buyDynamic() {
     if (state.phase !== "priced") return;
-    const res = await fetch(`/api/buy/confirm-dynamic/${state.quoteId}`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ maximumPremium: { amount: state.premium.amount, currency: "USD" } })
-    });
-    const data = await res.json();
-    if (data.accepted && data.checkout?.url) window.location.assign(data.checkout.url);
+    setBuyError(undefined);
+    setIsBuying(true);
+    try {
+      const res = await fetch(`/api/buy/confirm-dynamic/${state.quoteId}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ maximumPremium: { amount: state.premium.amount, currency: "USD" } })
+      });
+      const data = await res.json();
+      if (data.accepted && data.checkout?.url) {
+        window.location.assign(data.checkout.url);
+      } else {
+        setBuyError(data.message ?? "Unable to start checkout.");
+        setIsBuying(false);
+      }
+    } catch {
+      setBuyError("Network error — unable to reach the checkout service.");
+      setIsBuying(false);
+    }
   }
 
   return (
@@ -199,6 +213,7 @@ export default function BuyPage() {
                 onClick={() => {
                   setActiveProduct(product.id);
                   setPremiumEstimate(defaultPremiumEstimate(product.id));
+                  dispatch({ type: "reset" });
                 }}
               >
                 <div className="flex items-start gap-4">
@@ -337,13 +352,20 @@ export default function BuyPage() {
                   </div>
                 ) : null}
                 <div className="mt-5">
+                  {buyError ? (
+                    <div className="mb-3 border border-signal/40 bg-signal/5 p-3 text-sm leading-6" role="alert">
+                      <p className="font-mono text-[0.66rem] uppercase tracking-wider text-signal">Checkout error</p>
+                      <p className="mt-1 text-ink-soft">{buyError}</p>
+                    </div>
+                  ) : null}
                   <button
-                    className="btn w-full border-mint bg-mint hover:border-rain hover:bg-rain"
+                    className="btn w-full border-mint bg-mint hover:border-rain hover:bg-rain disabled:opacity-60"
                     type="button"
+                    disabled={isBuying}
                     onClick={() => void buyDynamic()}
                   >
                     <ShieldCheck size={16} />
-                    Buy coverage
+                    {isBuying ? "Opening secure checkout…" : "Buy coverage"}
                   </button>
                   <p className="mt-2 text-center font-mono text-[0.62rem] uppercase tracking-wider text-ink-soft">
                     Secure Stripe checkout · Coverage activates after verified payment
