@@ -1,11 +1,13 @@
 "use client";
 
 import type { FormEvent, ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { CalendarClock, CloudRain, Plane, ShieldCheck, Sparkles } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { FlightLookupResult } from "@/lib/aerodatabox";
 import { estimatePremiumRange } from "@/lib/premium-pricing";
+import { dynamicQuoteReducer } from "@/components/buy-flow";
+import { AgentIntake } from "@/components/AgentIntake";
 
 const LocationPicker = dynamic(() => import("@/components/LocationPicker"), {
   ssr: false,
@@ -18,70 +20,6 @@ type Money = {
   amount: number;
   currency: "USD";
 };
-
-type RiskAssessment = {
-  score: number;
-  factors: string[];
-  observedMetric: {
-    label: string;
-    value: string;
-  };
-};
-
-type PolicyPacket = {
-  certificateId: string;
-  title: string;
-  insured: string;
-  coverageSummary: string;
-  deductibleSummary: string;
-  triggerSummary: string;
-  premiumSummary: string;
-  dataSources: string[];
-  exclusions: string[];
-  issueCondition: string;
-};
-
-type ProductQuote = {
-  product: {
-    id: ProductId;
-    name: string;
-    tagline: string;
-  };
-  policy: {
-    id: string;
-    certificateId: string;
-    eventName: string;
-    locationName: string;
-    premium: Money;
-    coverageAmount?: Money;
-    deductible?: Money;
-    payout: Money;
-    trigger: {
-      variable: "rainfall_mm" | "arrival_delay_minutes";
-      threshold: number;
-      window: {
-        start: string;
-        end: string;
-      };
-    };
-    riskScore?: number;
-  };
-  risk: RiskAssessment;
-  packet: PolicyPacket;
-  agentNarrative: string[];
-};
-
-type QuoteState =
-  | { status: "idle" }
-  | { status: "loading"; pricingMode: "live" | "demo" }
-  | {
-      status: "quoted";
-      quote: ProductQuote;
-      payload: ProductPayload;
-      checkoutStatus: "idle" | "redirecting";
-      checkoutError?: string;
-    }
-  | { status: "error"; message: string };
 
 type RainPayload = {
   productId: "rain_event";
@@ -109,8 +47,6 @@ type FlightPayload = {
   desiredPayout: Money;
   deductible: Money;
 };
-
-type ProductPayload = RainPayload | FlightPayload;
 
 const products = [
   {
@@ -180,81 +116,47 @@ const airportOptions = [
 
 export default function BuyPage() {
   const [activeProduct, setActiveProduct] = useState<ProductId>("rain_event");
-  const [state, setState] = useState<QuoteState>({ status: "idle" });
+  const [state, dispatch] = useReducer(dynamicQuoteReducer, { phase: "idle" });
   const [premiumEstimate, setPremiumEstimate] = useState(() => defaultPremiumEstimate("rain_event"));
 
   const selectedProduct = products.find((product) => product.id === activeProduct) ?? products[0];
 
-  async function handleQuote(event: FormEvent<HTMLFormElement>) {
+  async function handleDynamicQuote(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const payload = activeProduct === "rain_event" ? buildRainPayload(form) : buildFlightPayload(form);
-    const submitter = (event.nativeEvent as SubmitEvent).submitter;
-    const pricingMode = submitter instanceof HTMLButtonElement && submitter.value === "demo" ? "demo" : "live";
-
-    setState({ status: "loading", pricingMode });
     try {
-      const response = await fetch(`/api/products/quote${pricingMode === "demo" ? "?pricing=demo" : ""}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+      const res = await fetch("/api/agent/coverage-request", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pricing: "dynamic", ...payload })
       });
-      const result = await response.json();
-
-      if (!response.ok || !result.accepted) {
-        setState({ status: "error", message: result.message ?? "Unable to quote coverage." });
-        return;
-      }
-
-      setState({ status: "quoted", quote: result.quote, payload, checkoutStatus: "idle" });
-    } catch {
-      setState({
-        status: "error",
-        message: "Unable to reach the quote service. Check your connection and try again."
-      });
-    }
+      const data = await res.json();
+      if (!res.ok || !data.accepted) { dispatch({ type: "failed", message: data.message ?? "Could not start pricing." }); return; }
+      dispatch({ type: "requested", quoteId: data.quoteId, baseline: data.baseline ? { premium: data.baseline.premium } : undefined });
+    } catch { dispatch({ type: "failed", message: "Unable to reach the quote service." }); }
   }
 
-  async function createCheckout() {
-    if (state.status !== "quoted") return;
+  useEffect(() => {
+    if (state.phase !== "intake") return;
+    const id = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/ops/quote-status/${state.quoteId}`);
+        if (!res.ok) return;
+        const status = await res.json();
+        dispatch({ type: "statusPolled", status });
+      } catch { /* keep polling */ }
+    }, 2000);
+    return () => clearInterval(id);
+  }, [state.phase, (state as any).quoteId]);
 
-    const quotedState = state;
-    setState({ ...quotedState, checkoutStatus: "redirecting", checkoutError: undefined });
-    try {
-      const response = await fetch("/api/stripe/create-checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(quotedState.payload)
-      });
-      const result = await response.json();
-
-      if (!response.ok || !result.accepted) {
-        setState({
-          ...quotedState,
-          checkoutStatus: "idle",
-          checkoutError: result.message ?? "Unable to create checkout."
-        });
-        return;
-      }
-
-      const checkoutUrl = result.checkout?.url;
-      if (typeof checkoutUrl !== "string" || checkoutUrl.length === 0) {
-        setState({
-          ...quotedState,
-          checkoutStatus: "idle",
-          checkoutError: "Stripe checkout did not return a valid redirect URL."
-        });
-        return;
-      }
-
-      window.location.assign(checkoutUrl);
-    } catch {
-      setState({
-        ...quotedState,
-        checkoutStatus: "idle",
-        checkoutError: "Unable to reach Stripe checkout. Check your connection and try again."
-      });
-    }
+  async function buyDynamic() {
+    if (state.phase !== "priced") return;
+    const res = await fetch(`/api/buy/confirm-dynamic/${state.quoteId}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ maximumPremium: { amount: state.premium.amount, currency: "USD" } })
+    });
+    const data = await res.json();
+    if (data.accepted && data.checkout?.url) window.location.assign(data.checkout.url);
   }
 
   return (
@@ -296,7 +198,6 @@ export default function BuyPage() {
                 type="button"
                 onClick={() => {
                   setActiveProduct(product.id);
-                  setState({ status: "idle" });
                   setPremiumEstimate(defaultPremiumEstimate(product.id));
                 }}
               >
@@ -349,15 +250,8 @@ export default function BuyPage() {
                 I will call the {selectedProduct.api.toLowerCase()} before pricing so premium changes
                 with risk.
               </AgentBubble>
-              {state.status === "quoted" ? (
-                <>
-                  {state.quote.agentNarrative.map((line) => (
-                    <AgentBubble key={line}>{line}</AgentBubble>
-                  ))}
-                </>
-              ) : null}
-              {state.status === "loading" ? (
-                <AgentBubble pending>Calling the risk adapter and pricing engine…</AgentBubble>
+              {state.phase === "intake" ? (
+                <AgentBubble pending>Operator agent is researching live risk…</AgentBubble>
               ) : null}
             </div>
           </section>
@@ -374,7 +268,7 @@ export default function BuyPage() {
             </div>
 
             <form
-              onSubmit={handleQuote}
+              onSubmit={handleDynamicQuote}
               onChange={(event) => setPremiumEstimate(premiumEstimateFromForm(activeProduct, event.currentTarget))}
               className="mt-6 grid gap-4 md:grid-cols-2"
             >
@@ -395,26 +289,10 @@ export default function BuyPage() {
               <div className="flex flex-col gap-3 md:col-span-2 sm:flex-row">
                 <button
                   className="btn w-full sm:w-auto"
-                  disabled={state.status === "loading"}
+                  disabled={state.phase === "intake"}
                   type="submit"
-                  name="pricingMode"
-                  value="live"
                 >
-                  <ShieldCheck size={16} />
-                  {state.status === "loading" && state.pricingMode === "live"
-                    ? "Pricing coverage…"
-                    : "Get dynamic quote"}
-                </button>
-                <button
-                  className="btn-ghost w-full sm:w-auto"
-                  disabled={state.status === "loading"}
-                  type="submit"
-                  name="pricingMode"
-                  value="demo"
-                >
-                  {state.status === "loading" && state.pricingMode === "demo"
-                    ? "Pricing without API…"
-                    : "Get dynamic quote (no api call)"}
+                  <ShieldCheck size={16} /> Get Dynamic Quote
                 </button>
               </div>
             </form>
@@ -424,26 +302,61 @@ export default function BuyPage() {
         <section className="panel mt-6 p-6">
           <div className="flex items-end justify-between border-b border-line pb-3">
             <h2 className="font-display text-2xl font-semibold">Quote &amp; Policy Packet</h2>
-            <span className="kicker">{stateLabel(state.status)}</span>
+            <span className="kicker">
+              {state.phase === "idle" ? "Awaiting input" : state.phase === "intake" ? "Pricing…" : state.phase === "priced" ? "Quoted" : "Error"}
+            </span>
           </div>
-          {state.status === "idle" ? (
+          {state.phase === "idle" ? (
             <p className="mt-4 text-ink-soft">
               Choose a coverage card and submit the questionnaire to price a policy.
             </p>
           ) : null}
-          {state.status === "error" ? (
+          {state.phase === "intake" ? (
+            <div className="mt-4">
+              <AgentIntake state={state} />
+            </div>
+          ) : null}
+          {state.phase === "priced" ? (
+            <div className="mt-4 grid gap-6">
+              <AgentIntake state={state} />
+              <div className="panel p-5">
+                <p className="kicker">Dynamic price</p>
+                <p className="mt-2 font-display text-3xl font-semibold">${state.premium.amount} USD</p>
+                {state.citations.length > 0 ? (
+                  <div className="mt-4">
+                    <p className="font-mono text-[0.66rem] uppercase tracking-wider text-ink-soft">Evidence</p>
+                    <ul className="mt-2 space-y-1">
+                      {state.citations.map((c, i) => (
+                        <li key={i} className="text-sm">
+                          <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-rain underline underline-offset-2">
+                            {c.title}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                <div className="mt-5">
+                  <button
+                    className="btn w-full border-mint bg-mint hover:border-rain hover:bg-rain"
+                    type="button"
+                    onClick={() => void buyDynamic()}
+                  >
+                    <ShieldCheck size={16} />
+                    Buy coverage
+                  </button>
+                  <p className="mt-2 text-center font-mono text-[0.62rem] uppercase tracking-wider text-ink-soft">
+                    Secure Stripe checkout · Coverage activates after verified payment
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          {state.phase === "error" ? (
             <div className="mt-5 border border-signal/40 bg-signal/5 p-4 text-sm leading-6">
               <p className="font-mono text-[0.66rem] uppercase tracking-wider text-signal">Quote unavailable</p>
               <p className="mt-1 text-ink-soft">{state.message}</p>
             </div>
-          ) : null}
-          {state.status === "quoted" ? (
-            <QuoteResult
-              quote={state.quote}
-              checkoutStatus={state.checkoutStatus}
-              checkoutError={state.checkoutError}
-              onCreateCheckout={createCheckout}
-            />
           ) : null}
         </section>
       </div>
@@ -785,86 +698,6 @@ function FlightFields() {
   );
 }
 
-function QuoteResult({
-  quote,
-  checkoutStatus,
-  checkoutError,
-  onCreateCheckout
-}: {
-  quote: ProductQuote;
-  checkoutStatus: "idle" | "redirecting";
-  checkoutError?: string;
-  onCreateCheckout: () => void;
-}) {
-  return (
-    <div className="mt-6 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-      <div className="relative border border-ink bg-card p-5 shadow-riso">
-        <div className="flex items-center justify-between border-b border-line pb-3">
-          <p className="kicker">Policy packet</p>
-          <span className="tag text-rain">{quote.packet.certificateId}</span>
-        </div>
-        <h3 className="mt-4 font-display text-2xl font-semibold">{quote.packet.title}</h3>
-        <dl className="mt-4 divide-y divide-line border-y border-line">
-          <PacketRow label="Certificate" value={quote.packet.certificateId} />
-          <PacketRow label="Insured" value={quote.packet.insured} />
-          <PacketRow label="Coverage" value={quote.packet.coverageSummary} />
-          <PacketRow label="Deductible" value={quote.packet.deductibleSummary} />
-          <PacketRow label="Trigger" value={quote.packet.triggerSummary} />
-          <PacketRow label="Premium" value={quote.packet.premiumSummary} />
-          <PacketRow label="Issue condition" value={quote.packet.issueCondition} />
-        </dl>
-      </div>
-
-      <div className="quiet flex h-full flex-col p-5">
-        <p className="kicker">Dynamic price</p>
-        <div className="mt-4 grid grid-cols-2 gap-px border border-line bg-line sm:grid-cols-5">
-          <Metric label="Premium" value={`$${quote.policy.premium.amount}`} />
-          <Metric label="Coverage" value={`$${quote.policy.coverageAmount?.amount ?? quote.policy.payout.amount}`} />
-          <Metric label="Deductible" value={`$${quote.policy.deductible?.amount ?? 0}`} />
-          <Metric label="Net payout" value={`$${quote.policy.payout.amount}`} />
-          <Metric label="Risk" value={`${quote.risk.score}/100`} />
-        </div>
-        <div className="mt-4 border border-mint/40 bg-card p-4">
-          <p className="font-mono text-[0.66rem] uppercase tracking-wider text-mint">Forecast summary</p>
-          <p className="mt-2 text-sm text-ink">
-            {quote.risk.observedMetric.label}:{" "}
-            <strong className="font-mono">{quote.risk.observedMetric.value}</strong>
-          </p>
-          <ul className="mt-3 space-y-1.5 text-sm leading-6 text-ink-soft">
-            {quote.risk.factors.map((factor) => (
-              <li key={factor} className="flex gap-2">
-                <span className="text-mint">›</span>
-                {factor}
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="mt-auto pt-5">
-          <button
-            className="btn w-full border-mint bg-mint hover:border-rain hover:bg-rain"
-            type="button"
-            onClick={onCreateCheckout}
-            disabled={checkoutStatus === "redirecting"}
-          >
-            <ShieldCheck size={16} />
-            {checkoutStatus === "redirecting"
-              ? "Opening secure checkout…"
-              : "Buy coverage"}
-          </button>
-          <p className="mt-2 text-center font-mono text-[0.62rem] uppercase tracking-wider text-ink-soft">
-            Secure Stripe checkout · Coverage activates after verified payment
-          </p>
-          {checkoutError ? (
-            <p className="mt-3 border border-signal/40 bg-signal/5 p-3 text-sm text-signal" role="alert">
-              {checkoutError}
-            </p>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function AgentBubble({ children, pending = false }: { children: ReactNode; pending?: boolean }) {
   return (
     <div
@@ -873,31 +706,6 @@ function AgentBubble({ children, pending = false }: { children: ReactNode; pendi
       }`}
     >
       {children}
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-card p-3 text-center">
-      <p className="font-mono text-[0.6rem] uppercase tracking-wider text-ink-soft">{label}</p>
-      <p className="mt-1 font-display text-2xl font-semibold">{value}</p>
-    </div>
-  );
-}
-
-function stateLabel(status: QuoteState["status"]): string {
-  if (status === "loading") return "Pricing…";
-  if (status === "quoted") return "Quoted";
-  if (status === "error") return "Error";
-  return "Awaiting input";
-}
-
-function PacketRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid grid-cols-[8rem_1fr] gap-3 py-2.5">
-      <dt className="font-mono text-[0.66rem] uppercase tracking-wider text-ink-soft">{label}</dt>
-      <dd className="text-sm text-ink">{value}</dd>
     </div>
   );
 }
