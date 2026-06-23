@@ -111,3 +111,18 @@ it("createDynamicPricingJob attaches a baseline and two pio progress events", as
   expect((job?.progress ?? []).map((p) => p.step)).toEqual(["weather_api_called", "baseline_computed"]);
   expect((job?.progress ?? []).every((p) => p.source === "pio")).toBe(true);
 });
+
+it("fail-closed reuses the stored baseline premium and records it on the job (no network)", async () => {
+  const store = new InMemoryPolicyStore();
+  const input = { productId: "rain_event", customerName: "C", eventName: "E", locationName: "L",
+    latitude: 1, longitude: 2, eventStart: "2030-01-01T00:00:00Z", eventEnd: "2030-01-01T06:00:00Z",
+    desiredPayout: { amount: 500, currency: "USD" } } as never;
+  const { quoteId, baseline } = await createDynamicPricingJob(input, { store, now: "2026-06-22T00:00:00Z", adapters: { weather: new DemoWeatherPricingApi() } });
+  const res = await pricePricingJob({ quoteId, now: "2026-06-22T00:01:00Z", memo: { riskScore: 0.9, evidence: [], toolName: "t" } }, { store });
+  expect(res.accepted).toBe(true);
+  const job = await store.getPricingJob(quoteId);
+  expect(job?.status).toBe("priced");
+  expect(job?.pricedBy).toBe("deterministic_fallback");
+  expect(job?.premium?.amount).toBe(baseline.premium.amount);     // reused, not refetched
+  expect((job?.progress ?? []).some((p) => p.step === "priced")).toBe(true);
+});

@@ -73,27 +73,29 @@ export async function pricePricingJob(
   if (!job) return { accepted: false, reasonCode: "job_not_found" };
   if (job.status === "priced") return { accepted: false, reasonCode: "already_priced" };
 
-  // Compute the research assessment once; empty evidence fails closed to the
-  // default deterministic adapters (Open-Meteo / AeroDataBox).
   const assessment = memo.evidence.length > 0
     ? riskAssessmentFromMemo(job.productInput.productId, memo, now)
     : undefined;
+  // grounded → research adapter; else reuse the stored baseline risk; else default adapters
+  const adapterRisk = assessment ?? job.baseline?.risk;
   const quote = await quoteCoverageProduct(
     job.productInput,
-    assessment ? researchRiskAdapters(assessment) : adapters,
+    adapterRisk ? researchRiskAdapters(adapterRisk) : adapters,
     { now: new Date(now) }
   );
-
   const policy: Policy = {
     ...quote.policy,
     pricingMode: "dynamic",
     pricedBy: assessment ? "operator_research" : "deterministic_fallback",
     riskCitations: assessment?.citations
   };
-
+  const pricedJob = withProgress(
+    { ...job, status: "priced", pricedAt: now, premium: policy.premium, citations: assessment?.citations, pricedBy: policy.pricedBy },
+    { at: now, source: "pio", step: "priced", detail: `Priced $${policy.premium.amount}${assessment ? ` from ${assessment.citations?.length ?? 0} sources` : " (deterministic fallback)"}` }
+  );
   await store.withTransaction(async (tx) => {
     await tx.savePolicy(policy);
-    await tx.savePricingJob({ ...job, status: "priced", pricedAt: now });
+    await tx.savePricingJob(pricedJob);
   });
   return { accepted: true, policy };
 }
