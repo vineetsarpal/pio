@@ -13,11 +13,13 @@ import { InMemoryPolicyStore } from "../lib/policy-store";
 
 beforeEach(() => {
   hoisted.storeRef.current = new InMemoryPolicyStore();
+  process.env.PIO_POLICY_STATUS_TOKEN_SECRET = "test-status-secret";
 });
 
 const originalFetch = globalThis.fetch;
 const originalStripeKey = process.env.STRIPE_SECRET_KEY;
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+const originalStatusSecret = process.env.PIO_POLICY_STATUS_TOKEN_SECRET;
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
@@ -27,6 +29,11 @@ afterEach(() => {
     process.env.STRIPE_SECRET_KEY = originalStripeKey;
   }
   process.env.NEXT_PUBLIC_APP_URL = originalAppUrl;
+  if (originalStatusSecret === undefined) {
+    delete process.env.PIO_POLICY_STATUS_TOKEN_SECRET;
+  } else {
+    process.env.PIO_POLICY_STATUS_TOKEN_SECRET = originalStatusSecret;
+  }
   vi.restoreAllMocks();
 });
 
