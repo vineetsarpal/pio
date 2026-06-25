@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, Loader2, Clock } from "lucide-react";
+import { CheckCircle2, Loader2, Clock, Info } from "lucide-react";
 import { resolvePolicyStatusView } from "@/lib/policy-status-view";
 
 const POLL_MS = 1_500;
@@ -35,6 +35,7 @@ export default function BuySuccessPage() {
   const [elapsedMs, setElapsedMs] = useState(0);
   const startRef = useRef<number>(Date.now());
 
+  const hasCredentials = Boolean(policyId && token);
   const activated = data?.activated === true;
 
   useEffect(() => {
@@ -71,17 +72,23 @@ export default function BuySuccessPage() {
     };
   }, [policyId, token, activated]);
 
-  const view = resolvePolicyStatusView({ activated, elapsedMs, timeoutMs: TIMEOUT_MS });
+  const view = resolvePolicyStatusView({ hasCredentials, activated, elapsedMs, timeoutMs: TIMEOUT_MS });
 
   const kicker =
     view === "active"
       ? "Coverage active"
-      : view === "taking_longer"
-        ? "Still confirming"
-        : "Confirming with Stripe…";
+      : view === "missing_link"
+        ? "Link incomplete"
+        : view === "taking_longer"
+          ? "Still confirming"
+          : "Confirming with Stripe…";
 
   const heading =
-    view === "active" ? "Coverage active" : "Premium payment ready for verification";
+    view === "active"
+      ? "Coverage active"
+      : view === "missing_link"
+        ? "Open this from your checkout link"
+        : "Premium payment ready for verification";
 
   return (
     <main className="px-4 py-14 text-ink sm:px-6 lg:px-8">
@@ -95,6 +102,8 @@ export default function BuySuccessPage() {
           >
             {view === "active" ? (
               <CheckCircle2 size={18} />
+            ) : view === "missing_link" ? (
+              <Info size={18} />
             ) : view === "taking_longer" ? (
               <Clock size={18} />
             ) : (
@@ -112,6 +121,12 @@ export default function BuySuccessPage() {
             Stripe&apos;s verified <code className="font-mono text-rain">checkout.session.completed</code> webhook
             posted the immutable <code className="font-mono text-rain">premium_collected</code> event and PIO issued
             the policy. Certificate <span className="font-mono font-semibold">{data?.certificateId}</span> is active.
+          </p>
+        ) : view === "missing_link" ? (
+          <p className="mt-5 text-pretty leading-8 text-ink-soft">
+            This page confirms a policy&apos;s activation, but the link is missing the checkout details it needs to
+            look one up. Open the success link from your Stripe checkout, or head back to the quote workspace to start
+            a new purchase.
           </p>
         ) : view === "taking_longer" ? (
           <p className="mt-5 text-pretty leading-8 text-ink-soft">
