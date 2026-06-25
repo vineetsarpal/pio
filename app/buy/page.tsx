@@ -1,8 +1,8 @@
 "use client";
 
-import type { FormEvent, ReactNode } from "react";
+import type { FormEvent } from "react";
 import { useEffect, useReducer, useState } from "react";
-import { CalendarClock, CloudRain, Plane, ShieldCheck, Sparkles } from "lucide-react";
+import { Activity, CalendarClock, CloudRain, Plane, ShieldCheck } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { FlightLookupResult } from "@/lib/aerodatabox";
 import { estimatePremiumRange } from "@/lib/premium-pricing";
@@ -120,6 +120,7 @@ export default function BuyPage() {
   const [premiumEstimate, setPremiumEstimate] = useState(() => defaultPremiumEstimate("rain_event"));
   const [buyError, setBuyError] = useState<string | undefined>();
   const [isBuying, setIsBuying] = useState(false);
+  const [terms, setTerms] = useState<RainPayload | FlightPayload | undefined>();
 
   const selectedProduct = products.find((product) => product.id === activeProduct) ?? products[0];
   const pollQuoteId = state.phase === "intake" ? state.quoteId : undefined;
@@ -128,6 +129,7 @@ export default function BuyPage() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const payload = activeProduct === "rain_event" ? buildRainPayload(form) : buildFlightPayload(form);
+    setTerms(payload);
     try {
       const res = await fetch("/api/agent/coverage-request", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -175,9 +177,9 @@ export default function BuyPage() {
   }
 
   return (
-    <main className="px-4 py-10 text-ink sm:px-6 lg:px-8">
+    <main className="px-4 py-6 text-ink sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex items-center gap-3 border-y border-signal/40 bg-signal/5 px-3 py-2 font-mono text-[0.66rem] uppercase tracking-wider text-signal">
+        <div className="mb-4 flex items-center gap-3 border-y border-signal/40 bg-signal/5 px-3 py-2 font-mono text-[0.66rem] uppercase tracking-wider text-signal">
           <span className="border border-signal px-1.5 py-0.5">Notice</span>
           <span className="text-ink-soft">
             Hackathon demo only — Stripe test mode. No real insurance, coverage, or legally binding
@@ -186,17 +188,13 @@ export default function BuyPage() {
         </div>
 
         {/* Section header */}
-        <div className="mb-8 flex flex-wrap items-end justify-between gap-3 border-b-2 border-ink pb-3">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b-2 border-ink pb-2">
           <div>
             <p className="kicker text-rain">Coverage catalog</p>
-            <h1 className="mt-1 font-display text-5xl font-semibold leading-none tracking-tight">
+            <h1 className="mt-1 font-display text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
               Choose parametric protection
             </h1>
           </div>
-          <p className="max-w-md text-pretty text-sm leading-6 text-ink-soft">
-            The agent guides a product-specific intake, calls the relevant risk API, prices the
-            premium, and prepares a policy packet for Stripe-backed issuance.
-          </p>
         </div>
 
         {/* Product selector */}
@@ -207,7 +205,7 @@ export default function BuyPage() {
             return (
               <button
                 key={product.id}
-                className={`p-5 text-left transition-colors ${
+                className={`p-4 text-left transition-colors ${
                   selected ? "bg-rain text-card" : "bg-card hover:bg-paper/60"
                 }`}
                 type="button"
@@ -215,24 +213,22 @@ export default function BuyPage() {
                   setActiveProduct(product.id);
                   setPremiumEstimate(defaultPremiumEstimate(product.id));
                   dispatch({ type: "reset" });
+                  setTerms(undefined);
                   setBuyError(undefined);
                   setIsBuying(false);
                 }}
               >
-                <div className="flex items-start gap-4">
+                <div className="flex items-center gap-3">
                   <span
-                    className={`flex h-12 w-12 shrink-0 items-center justify-center border ${
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center border ${
                       selected ? "border-card/60 bg-card/15 text-card" : "border-ink bg-rain/10 text-rain"
                     }`}
                   >
-                    <Icon size={22} />
+                    <Icon size={18} />
                   </span>
-                  <span className="min-w-0">
-                    <span className="block font-display text-xl font-semibold">{product.name}</span>
-                    <span className={`mt-1 block text-sm leading-6 ${selected ? "text-card/80" : "text-ink-soft"}`}>
-                      {product.description}
-                    </span>
-                    <span className="mt-3 flex flex-wrap gap-2 font-mono text-[0.62rem] font-semibold uppercase tracking-wider">
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-display text-lg font-semibold leading-tight">{product.name}</span>
+                    <span className="mt-1 flex flex-wrap gap-2 font-mono text-[0.62rem] font-semibold uppercase tracking-wider">
                       <span className={`border px-2 py-0.5 ${selected ? "border-card/50" : "border-line"}`}>
                         {product.trigger}
                       </span>
@@ -247,33 +243,7 @@ export default function BuyPage() {
           })}
         </div>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-          <section className="panel reg p-6">
-            <div className="flex items-center gap-3 border-b border-line pb-4">
-              <span className="flex h-10 w-10 items-center justify-center border border-mint bg-mint/10 text-mint">
-                <Sparkles size={18} />
-              </span>
-              <div>
-                <p className="kicker text-mint">Agent intake</p>
-                <h2 className="font-display text-2xl font-semibold">{selectedProduct.name}</h2>
-              </div>
-            </div>
-
-            <div className="mt-5 space-y-3">
-              <AgentBubble>
-                Selected {selectedProduct.name}. I will capture only the fields needed to quote this
-                parametric cover.
-              </AgentBubble>
-              <AgentBubble>
-                I will call the {selectedProduct.api.toLowerCase()} before pricing so premium changes
-                with risk.
-              </AgentBubble>
-              {state.phase === "intake" ? (
-                <AgentBubble pending>Operator agent is researching live risk…</AgentBubble>
-              ) : null}
-            </div>
-          </section>
-
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <section className="panel p-6">
             <div className="flex items-center gap-3 border-b border-line pb-4">
               <span className="flex h-10 w-10 items-center justify-center border border-rain bg-rain/10 text-rain">
@@ -291,22 +261,9 @@ export default function BuyPage() {
               className="mt-6 grid gap-4 md:grid-cols-2"
             >
               {activeProduct === "rain_event" ? <RainFields /> : <FlightFields />}
-              <div className="border border-rain/30 bg-rain/5 p-4 md:col-span-2" aria-live="polite">
-                <p className="font-mono text-[0.66rem] uppercase tracking-wider text-rain">
-                  Estimated premium range
-                </p>
-                <p className="mt-1 font-display text-2xl font-semibold">
-                  {premiumEstimate
-                    ? `$${premiumEstimate.minimum.amount}–$${premiumEstimate.maximum.amount}`
-                    : "Complete valid coverage terms"}
-                </p>
-                <p className="mt-1 text-xs leading-5 text-ink-soft">
-                  Final premium depends on live risk data.
-                </p>
-              </div>
               <div className="flex flex-col gap-3 md:col-span-2 sm:flex-row">
                 <button
-                  className="btn w-full sm:w-auto"
+                  className="btn w-full"
                   disabled={state.phase === "intake"}
                   type="submit"
                 >
@@ -315,73 +272,130 @@ export default function BuyPage() {
               </div>
             </form>
           </section>
+
+          <section className="panel reg p-6">
+            <div className="flex items-center gap-3 border-b border-line pb-4">
+              <span className="flex h-10 w-10 items-center justify-center border border-mint bg-mint/10 text-mint">
+                <Activity size={18} />
+              </span>
+              <div>
+                <p className="kicker text-mint">Quote</p>
+                <h2 className="font-display text-2xl font-semibold">
+                  {state.phase === "priced" ? "Your quote" : state.phase === "intake" ? "Live quote" : "Estimate"}
+                </h2>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-5">
+              {state.phase !== "error" ? (
+                <div className="border border-rain/30 bg-rain/5 p-4" aria-live="polite">
+                  <p className="font-mono text-[0.66rem] uppercase tracking-wider text-rain">
+                    Estimated premium range
+                  </p>
+                  <p className="mt-1 font-display text-3xl font-semibold">
+                    {premiumEstimate
+                      ? `$${premiumEstimate.minimum.amount}–$${premiumEstimate.maximum.amount}`
+                      : "Complete valid coverage terms"}
+                  </p>
+                  {state.phase === "idle" ? (
+                    <p className="mt-2 text-xs leading-5 text-ink-soft">
+                      Submit the questionnaire. Our Underwriting agents research live data for the risk
+                      factors and arrive at your final premium.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {state.phase === "intake" || state.phase === "priced" ? (
+                <div className="border-t border-line pt-5">
+                  <p className="kicker">Live agent progress</p>
+                  <div className="mt-2">
+                    <AgentIntake state={state} />
+                  </div>
+                </div>
+              ) : null}
+
+              {state.phase === "priced" ? (
+                <div className="border-t border-line pt-5">
+                  <p className="kicker">Final premium</p>
+                  <p className="mt-2 font-display text-3xl font-semibold">${state.premium.amount} USD</p>
+                  {state.citations.length > 0 ? (
+                    <div className="mt-4">
+                      <p className="font-mono text-[0.66rem] uppercase tracking-wider text-ink-soft">Evidence</p>
+                      <ul className="mt-2 space-y-1">
+                        {state.citations.map((c, i) => (
+                          <li key={i} className="text-sm">
+                            <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-rain underline underline-offset-2">
+                              {c.title}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  <div className="mt-5">
+                    {buyError ? (
+                      <div className="mb-3 border border-signal/40 bg-signal/5 p-3 text-sm leading-6" role="alert">
+                        <p className="font-mono text-[0.66rem] uppercase tracking-wider text-signal">Checkout error</p>
+                        <p className="mt-1 text-ink-soft">{buyError}</p>
+                      </div>
+                    ) : null}
+                    <button
+                      className="btn w-full border-mint bg-mint hover:border-rain hover:bg-rain disabled:opacity-60"
+                      type="button"
+                      disabled={isBuying}
+                      onClick={() => void buyDynamic()}
+                    >
+                      <ShieldCheck size={16} />
+                      {isBuying ? "Opening secure checkout…" : "Buy coverage"}
+                    </button>
+                    <p className="mt-2 text-center font-mono text-[0.62rem] uppercase tracking-wider text-ink-soft">
+                      Secure Stripe checkout · Coverage activates after verified payment
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
+              {state.phase === "error" ? (
+                <div className="border border-signal/40 bg-signal/5 p-4 text-sm leading-6">
+                  <p className="font-mono text-[0.66rem] uppercase tracking-wider text-signal">Quote unavailable</p>
+                  <p className="mt-1 text-ink-soft">{state.message}</p>
+                </div>
+              ) : null}
+            </div>
+          </section>
         </div>
 
         <section className="panel mt-6 p-6">
           <div className="flex items-end justify-between border-b border-line pb-3">
-            <h2 className="font-display text-2xl font-semibold">Quote &amp; Policy Packet</h2>
+            <h2 className="font-display text-2xl font-semibold">Policy Packet</h2>
             <span className="kicker">
               {state.phase === "idle" ? "Awaiting input" : state.phase === "intake" ? "Pricing…" : state.phase === "priced" ? "Quoted" : "Error"}
             </span>
           </div>
           {state.phase === "idle" ? (
             <p className="mt-4 text-ink-soft">
-              Choose a coverage card and submit the questionnaire to price a policy.
+              Choose a coverage card and submit the questionnaire to generate a specimen certificate.
             </p>
           ) : null}
           {state.phase === "intake" ? (
-            <div className="mt-4">
-              <AgentIntake state={state} />
-            </div>
+            <p className="mt-4 text-ink-soft">
+              Pricing in progress — follow the live steps on the right. Your specimen certificate
+              appears here once the operator submits a quote.
+            </p>
           ) : null}
           {state.phase === "priced" ? (
-            <div className="mt-4 grid gap-6">
-              <AgentIntake state={state} />
-              <div className="panel p-5">
-                <p className="kicker">Dynamic price</p>
-                <p className="mt-2 font-display text-3xl font-semibold">${state.premium.amount} USD</p>
-                {state.citations.length > 0 ? (
-                  <div className="mt-4">
-                    <p className="font-mono text-[0.66rem] uppercase tracking-wider text-ink-soft">Evidence</p>
-                    <ul className="mt-2 space-y-1">
-                      {state.citations.map((c, i) => (
-                        <li key={i} className="text-sm">
-                          <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-rain underline underline-offset-2">
-                            {c.title}
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-                <div className="mt-5">
-                  {buyError ? (
-                    <div className="mb-3 border border-signal/40 bg-signal/5 p-3 text-sm leading-6" role="alert">
-                      <p className="font-mono text-[0.66rem] uppercase tracking-wider text-signal">Checkout error</p>
-                      <p className="mt-1 text-ink-soft">{buyError}</p>
-                    </div>
-                  ) : null}
-                  <button
-                    className="btn w-full border-mint bg-mint hover:border-rain hover:bg-rain disabled:opacity-60"
-                    type="button"
-                    disabled={isBuying}
-                    onClick={() => void buyDynamic()}
-                  >
-                    <ShieldCheck size={16} />
-                    {isBuying ? "Opening secure checkout…" : "Buy coverage"}
-                  </button>
-                  <p className="mt-2 text-center font-mono text-[0.62rem] uppercase tracking-wider text-ink-soft">
-                    Secure Stripe checkout · Coverage activates after verified payment
-                  </p>
-                </div>
-              </div>
+            <div className="mt-4">
+              <SpecimenCertificate
+                terms={terms}
+                product={selectedProduct}
+                premium={state.premium}
+                quoteId={state.quoteId}
+              />
             </div>
           ) : null}
           {state.phase === "error" ? (
-            <div className="mt-5 border border-signal/40 bg-signal/5 p-4 text-sm leading-6">
-              <p className="font-mono text-[0.66rem] uppercase tracking-wider text-signal">Quote unavailable</p>
-              <p className="mt-1 text-ink-soft">{state.message}</p>
-            </div>
+            <p className="mt-4 text-ink-soft">No certificate — pricing did not complete.</p>
           ) : null}
         </section>
       </div>
@@ -723,16 +737,81 @@ function FlightFields() {
   );
 }
 
-function AgentBubble({ children, pending = false }: { children: ReactNode; pending?: boolean }) {
+function SpecimenCertificate({
+  terms,
+  product,
+  premium,
+  quoteId
+}: {
+  terms: RainPayload | FlightPayload | undefined;
+  product: (typeof products)[number];
+  premium: Money;
+  quoteId: string;
+}) {
   return (
-    <div
-      className={`border-l-2 px-3 py-2 text-sm leading-6 ${
-        pending ? "animate-pulse border-rain bg-rain/5 text-rain" : "border-mint bg-paper/50 text-ink-soft"
-      }`}
-    >
-      {children}
+    <div className="panel relative overflow-hidden p-5">
+      <span className="pointer-events-none absolute right-4 top-4 font-mono text-[0.6rem] uppercase tracking-widest text-ink-soft/60">
+        Specimen
+      </span>
+      <p className="kicker">Specimen certificate</p>
+      <h3 className="mt-2 font-display text-xl font-semibold">{product.name}</h3>
+      <p className="mt-1 font-mono text-[0.66rem] uppercase tracking-wider text-ink-soft">Ref {quoteId}</p>
+
+      <dl className="mt-4 grid gap-x-4 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+        {terms ? <CertificateTerms terms={terms} /> : null}
+        <CertRow label="Trigger" value={product.trigger} />
+        <CertRow label="Data source" value={product.api} />
+        {terms ? <CertRow label="Coverage payout" value={`$${terms.desiredPayout.amount} USD`} /> : null}
+        {terms ? <CertRow label="Deductible" value={`$${terms.deductible.amount} USD`} /> : null}
+        <CertRow label="Premium" value={`$${premium.amount} USD`} />
+      </dl>
+
+      <p className="mt-4 border-t border-line pt-3 text-xs leading-5 text-ink-soft">
+        Specimen only — not a binding policy. Coverage is issued and the certificate finalized after
+        verified Stripe payment.
+      </p>
     </div>
   );
+}
+
+function CertificateTerms({ terms }: { terms: RainPayload | FlightPayload }) {
+  if (terms.productId === "rain_event") {
+    return (
+      <>
+        <CertRow label="Insured" value={terms.customerName} />
+        <CertRow label="Event" value={terms.eventName} />
+        <CertRow label="Location" value={terms.locationName} />
+        <CertRow
+          label="Coverage window"
+          value={`${formatWhen(terms.eventStart)} → ${formatWhen(terms.eventEnd)}`}
+        />
+      </>
+    );
+  }
+  return (
+    <>
+      <CertRow label="Insured" value={terms.passengerName} />
+      <CertRow label="Flight" value={`${terms.airline} ${terms.flightNumber}`} />
+      <CertRow label="Route" value={`${terms.originAirport} → ${terms.destinationAirport}`} />
+      <CertRow label="Departure" value={formatWhen(terms.departureTime)} />
+      <CertRow label="Arrival" value={formatWhen(terms.arrivalTime)} />
+    </>
+  );
+}
+
+function CertRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="font-mono text-[0.62rem] uppercase tracking-wider text-ink-soft">{label}</dt>
+      <dd className="mt-0.5 font-medium">{value}</dd>
+    </div>
+  );
+}
+
+function formatWhen(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
 function Field({

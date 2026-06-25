@@ -3,10 +3,9 @@ import type { DynamicQuoteState } from "./buy-flow";
 
 export function AgentIntake({ state }: { state: Extract<DynamicQuoteState, { phase: "intake" | "priced" }> }) {
   return (
-    <div className="panel p-5" aria-live="polite">
-      <p className="kicker">Operator intake</p>
+    <div aria-live="polite">
       {state.phase === "intake" && state.baseline ? (
-        <p className="mt-1 text-sm text-ink-soft">Baseline premium ${state.baseline.premium.amount} — operator researching live risk…</p>
+        <p className="text-sm text-ink-soft">Baseline premium ${state.baseline.premium.amount} — operator researching live risk…</p>
       ) : null}
       <ol className="mt-3 grid gap-2">
         {state.progress.map((e, i) => (
