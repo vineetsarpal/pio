@@ -7,6 +7,7 @@ import { quoteCoverageProduct } from "@/lib/coverage-products";
 import { getPolicyStore } from "@/lib/policy-store-factory";
 import { workflowEvent } from "@/lib/policy-store";
 import { checkoutRequestSchema, parseJsonBody } from "@/lib/http-schemas";
+import { signPolicyStatusToken } from "@/lib/policy-status-token";
 
 export async function POST(request: Request) {
   const parsed = await parseJsonBody(request, checkoutRequestSchema);
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
     });
 
     const payments = createLiveStripeCheckoutAdapterFromEnv();
+    const statusToken = signPolicyStatusToken(policy.id, Math.floor(Date.now() / 1000) + 3600);
     const checkout = await payments.createCheckout(
       policy,
       {
@@ -61,7 +63,8 @@ export async function POST(request: Request) {
         name: policy.customerName
       },
       {
-        idempotencyKey: `pio-buy-checkout-${policy.id}`
+        idempotencyKey: `pio-buy-checkout-${policy.id}`,
+        statusToken
       }
     );
 

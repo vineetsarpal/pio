@@ -8,6 +8,7 @@ type LiveStripeCheckoutAdapterConfig = {
 
 type CreateCheckoutOptions = {
   idempotencyKey?: string;
+  statusToken?: string;
 };
 
 type StripeCheckoutResponse = {
@@ -75,7 +76,11 @@ export class LiveStripeCheckoutAdapter
   ): Promise<CheckoutSession> {
     const body = new URLSearchParams();
     body.set("mode", "payment");
-    body.set("success_url", `${this.appUrl}/buy/success?session_id={CHECKOUT_SESSION_ID}&policy_id=${policy.id}`);
+    const statusTokenParam = options.statusToken ? `&t=${options.statusToken}` : "";
+    body.set(
+      "success_url",
+      `${this.appUrl}/buy/success?session_id={CHECKOUT_SESSION_ID}&policy_id=${policy.id}${statusTokenParam}`
+    );
     body.set("cancel_url", `${this.appUrl}/buy?checkout=cancelled&policy_id=${policy.id}`);
     body.set("line_items[0][quantity]", "1");
     body.set("line_items[0][price_data][currency]", policy.premium.currency.toLowerCase());
