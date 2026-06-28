@@ -5,6 +5,7 @@ import { getPolicyStore } from "@/lib/policy-store-factory";
 import type { OperatorReviewItem, Policy } from "@/lib/types";
 import { pricingFeedView } from "@/lib/ops-feed";
 import { PricingQueue } from "@/components/PricingQueue";
+import { Collapsible } from "@/components/Collapsible";
 
 export const dynamic = "force-dynamic";
 
@@ -50,10 +51,11 @@ export default async function OpsPage() {
           </div>
         ) : (
           <>
-            <PricingQueue initial={feed} />
+            <Collapsible title="Pricing queue">
+              <PricingQueue initial={feed} />
+            </Collapsible>
 
-            <section className="panel p-5">
-              <p className="kicker">Open operator reviews</p>
+            <Collapsible title="Open operator reviews">
               {reviews.length === 0 ? (
                 <div className="mt-4 border-l-2 border-mint bg-paper/50 px-3 py-3">
                   <div className="flex items-center gap-2">
@@ -78,10 +80,9 @@ export default async function OpsPage() {
                   ))}
                 </ul>
               )}
-            </section>
+            </Collapsible>
 
-            <section className="panel p-5">
-              <p className="kicker">Policies ({policies.length})</p>
+            <Collapsible title={`Policies (${policies.length})`}>
               {policies.length === 0 ? (
                 <p className="mt-4 text-sm leading-6 text-ink-soft">
                   No policies yet. Create one from the <Link href="/buy" className="text-rain hover:underline">/buy</Link> flow.
@@ -107,7 +108,7 @@ export default async function OpsPage() {
                   ))}
                 </div>
               )}
-            </section>
+            </Collapsible>
           </>
         )}
       </div>

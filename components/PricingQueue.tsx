@@ -12,27 +12,22 @@ export function PricingQueue({ initial }: { initial: Feed }) {
     }, 2000);
     return () => clearInterval(id);
   }, []);
-  return (
-    <section className="panel p-5">
-      <p className="kicker">Pricing queue</p>
-      {feed.pending.length === 0 && feed.recentlyPriced.length === 0 ? (
-        <p className="mt-4 text-sm text-ink-soft">No dynamic pricing activity yet.</p>
-      ) : (
-        <div className="mt-4 grid gap-2">
-          {feed.pending.map((r) => (
-            <div key={r.quoteId} className="quiet flex items-center justify-between px-3 py-2">
-              <span className="truncate">{r.eventName} · {r.locationName}</span>
-              <span className="font-mono text-xs text-rain animate-pulse">{(r.latestProgress ?? "awaiting operator").replaceAll("_", " ")}</span>
-            </div>
-          ))}
-          {feed.recentlyPriced.map((r) => (
-            <div key={r.quoteId} className="quiet flex items-center justify-between px-3 py-2">
-              <span className="truncate">{r.eventName} · {r.locationName}</span>
-              <span className="font-mono text-xs text-mint">priced ${r.premium?.amount} · {r.citationCount ?? 0} sources</span>
-            </div>
-          ))}
+  return feed.pending.length === 0 && feed.recentlyPriced.length === 0 ? (
+    <p className="mt-4 text-sm text-ink-soft">No dynamic pricing activity yet.</p>
+  ) : (
+    <div className="mt-4 grid gap-2">
+      {feed.pending.map((r) => (
+        <div key={r.quoteId} className="quiet flex items-center justify-between px-3 py-2">
+          <span className="truncate">{r.eventName} · {r.locationName}</span>
+          <span className="font-mono text-xs text-rain animate-pulse">{(r.latestProgress ?? "awaiting operator").replaceAll("_", " ")}</span>
         </div>
-      )}
-    </section>
+      ))}
+      {feed.recentlyPriced.map((r) => (
+        <div key={r.quoteId} className="quiet flex items-center justify-between px-3 py-2">
+          <span className="truncate">{r.eventName} · {r.locationName}</span>
+          <span className="font-mono text-xs text-mint">priced ${r.premium?.amount} · {r.citationCount ?? 0} sources</span>
+        </div>
+      ))}
+    </div>
   );
 }
