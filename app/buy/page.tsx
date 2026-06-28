@@ -78,8 +78,8 @@ const defaultRain = {
 };
 
 const defaultFlight = {
-  customerName: "Avery Chen",
-  passengerName: "Avery Chen",
+  customerName: "John Doe",
+  passengerName: "John Doe",
   airline: "Air Canada",
   flightNumber: "AC101",
   originAirport: "YYZ",
@@ -419,8 +419,19 @@ function RainFields() {
 
   return (
     <>
+      <FormSection
+        number="01"
+        title="Organizer"
+        description="Who is purchasing the protection?"
+      />
       <Field name="customerName" label="Customer" defaultValue={defaultRain.customerName} />
       <Field name="eventName" label="Event" defaultValue={defaultRain.eventName} />
+
+      <FormSection
+        number="02"
+        title="Event"
+        description="Where and when should rainfall be measured?"
+      />
       <LocationPicker
         defaultLat={Number(defaultRain.latitude)}
         defaultLng={Number(defaultRain.longitude)}
@@ -442,8 +453,16 @@ function RainFields() {
         type="datetime-local"
         required
       />
-      <CoverageAmountField defaultValue={defaultRain.desiredPayout} options={rainCoverageAmounts} />
-      <DeductibleField defaultValue={defaultRain.deductible} />
+
+      <FormSection
+        number="03"
+        title="Protection"
+        description="Choose the benefit and deductible for this event."
+      />
+      <div className="grid gap-4 md:col-span-2 md:grid-cols-2">
+        <CoverageAmountField defaultValue={defaultRain.desiredPayout} options={rainCoverageAmounts} />
+        <DeductibleField defaultValue={defaultRain.deductible} />
+      </div>
     </>
   );
 }
@@ -530,7 +549,7 @@ function FlightFields() {
 
   return (
     <>
-      <FlightFormSection
+      <FormSection
         number="01"
         title="Traveller"
         description="Who is purchasing the protection and who is covered?"
@@ -550,7 +569,7 @@ function FlightFields() {
         required
       />
 
-      <FlightFormSection
+      <FormSection
         number="02"
         title="Flight"
         description="Enter the flight number and departure date; AeroDataBox will fill the itinerary."
@@ -596,7 +615,7 @@ function FlightFields() {
             aria-pressed={manualEntry}
             onClick={() => setManualEntry((current) => !current)}
           >
-            {manualEntry ? "Lock manual entry" : "Enter manually (no api call)"}
+            {manualEntry ? "Lock manual entry" : "Enter manually"}
           </button>
         </div>
         {lookupState.status === "empty" ? (
@@ -724,7 +743,7 @@ function FlightFields() {
         required
       />
 
-      <FlightFormSection
+      <FormSection
         number="03"
         title="Protection"
         description="Choose the benefit and deductible that fit this trip."
@@ -886,7 +905,7 @@ function Field({
   );
 }
 
-function FlightFormSection({
+function FormSection({
   number,
   title,
   description
