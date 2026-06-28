@@ -7,8 +7,11 @@ import {
   quoteCoverageProduct
 } from "@/lib/coverage-products";
 import { parseJsonBody, productQuoteInputSchema } from "@/lib/http-schemas";
+import { quoteLimiter, rateLimit } from "@/lib/api-rate-limit";
 
 export async function POST(request: Request) {
+  const limited = rateLimit(request, quoteLimiter);
+  if (limited) return limited;
   const parsed = await parseJsonBody(request, productQuoteInputSchema);
   if (!parsed.ok) {
     return NextResponse.json(

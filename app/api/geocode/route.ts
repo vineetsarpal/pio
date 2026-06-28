@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { parseNominatimSearch } from "@/lib/geocode";
+import { lookupLimiter, rateLimit } from "@/lib/api-rate-limit";
 
 const NOMINATIM_UA = "pio/1.0 (rain-cover demo)";
 
 export async function GET(request: Request) {
+  const limited = rateLimit(request, lookupLimiter);
+  if (limited) return limited;
   const q = new URL(request.url).searchParams.get("q")?.trim();
   if (!q) {
     return NextResponse.json({ results: [] });

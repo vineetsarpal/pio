@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { handleAgentCoverageRequest } from "@/lib/agent-coverage";
 import { CoverageQuoteValidationError } from "@/lib/coverage-products";
 import { dynamicCoverageRequestSchema } from "@/lib/http-schemas";
-import { createDynamicPricingJob } from "@/lib/operator-research-pricing";
+import { createDynamicPricingJob, PricingQueueFullError } from "@/lib/operator-research-pricing";
 import { getPolicyStore } from "@/lib/policy-store-factory";
+import { intakeLimiter, rateLimit } from "@/lib/api-rate-limit";
 
 export async function POST(request: Request) {
+  const limited = rateLimit(request, intakeLimiter);
+  if (limited) return limited;
   const raw = await request.json();
 
   if ((raw as { pricing?: unknown })?.pricing === "dynamic") {
@@ -28,6 +31,12 @@ export async function POST(request: Request) {
         return NextResponse.json(
           { accepted: false, reasonCode: error.reasonCode, message: error.message },
           { status: 400 }
+        );
+      }
+      if (error instanceof PricingQueueFullError) {
+        return NextResponse.json(
+          { accepted: false, reasonCode: error.reasonCode, message: error.message },
+          { status: 429, headers: { "Retry-After": "30" } }
         );
       }
       throw error;

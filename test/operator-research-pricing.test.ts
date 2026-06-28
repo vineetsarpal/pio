@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { riskAssessmentFromMemo, researchRiskAdapters, createDynamicPricingJob, appendJobProgress } from "../lib/operator-research-pricing";
+import { riskAssessmentFromMemo, researchRiskAdapters, createDynamicPricingJob, appendJobProgress, PricingQueueFullError } from "../lib/operator-research-pricing";
 import { InMemoryPolicyStore } from "../lib/policy-store";
 import { CoverageQuoteValidationError, DemoWeatherPricingApi, DemoFlightStatusPricingApi } from "../lib/coverage-products";
 import { adjustmentFromScore } from "../lib/premium-pricing";
@@ -41,6 +41,17 @@ it("createDynamicPricingJob persists a pending job and returns the stable quoteI
   expect(res.status).toBe("quote_requested");
   const job = await store.getPricingJob(res.quoteId);
   expect(job?.status).toBe("pending");
+});
+
+it("createDynamicPricingJob rejects when the pending queue is at capacity", async () => {
+  const store = new InMemoryPolicyStore();
+  const at = (n: number) => ({ productId: "rain_event", customerName: `C${n}`, eventName: `E${n}`, locationName: "L",
+    latitude: 1, longitude: 2, eventStart: "2030-01-01T00:00:00Z", eventEnd: "2030-01-01T06:00:00Z",
+    desiredPayout: { amount: 500, currency: "USD" } }) as never;
+  const opts = { store, now: "2026-06-22T00:00:00Z", maxPending: 2, adapters: { weather: new DemoWeatherPricingApi() } };
+  await createDynamicPricingJob(at(1), opts);
+  await createDynamicPricingJob(at(2), opts);
+  await expect(createDynamicPricingJob(at(3), opts)).rejects.toThrow(PricingQueueFullError);
 });
 
 it("createDynamicPricingJob rejects an invalid window", async () => {

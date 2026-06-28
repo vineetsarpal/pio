@@ -49,11 +49,37 @@ export function researchRiskAdapters(assessment: RiskAssessment): ProductRiskAda
   };
 }
 
+/**
+ * Default ceiling on concurrently pending research jobs. Each pending job is
+ * work the Hermes operator will pick up and spend LLM + web-search budget on,
+ * so this caps blast radius from a flood of intake requests. Override with
+ * PIO_MAX_PENDING_PRICING_JOBS.
+ */
+const DEFAULT_MAX_PENDING_PRICING_JOBS = 20;
+
+function maxPendingPricingJobs(): number {
+  const raw = Number(process.env.PIO_MAX_PENDING_PRICING_JOBS);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_MAX_PENDING_PRICING_JOBS;
+}
+
+export class PricingQueueFullError extends Error {
+  readonly reasonCode = "pricing_queue_full" as const;
+  constructor(readonly pending: number, readonly max: number) {
+    super(`Pricing queue is at capacity (${pending}/${max} pending). Try again shortly.`);
+    this.name = "PricingQueueFullError";
+  }
+}
+
 export async function createDynamicPricingJob(
   input: ProductQuoteInput,
-  { store, now, adapters }: { store: PolicyStore; now: string; adapters?: ProductRiskAdapters }
+  { store, now, adapters, maxPending = maxPendingPricingJobs() }:
+    { store: PolicyStore; now: string; adapters?: ProductRiskAdapters; maxPending?: number }
 ): Promise<{ quoteId: string; status: "quote_requested"; baseline: { risk: RiskAssessment; premium: Money } }> {
   validateProductQuoteInput(input, new Date(now));
+  const pending = await store.listPendingPricingJobs();
+  if (pending.length >= maxPending) {
+    throw new PricingQueueFullError(pending.length, maxPending);
+  }
   const quoteId = productQuoteId(input);
   const quote = await quoteCoverageProduct(input, adapters, { now: new Date(now) });
   const baseline = { risk: quote.risk, premium: quote.policy.premium };
