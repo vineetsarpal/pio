@@ -1,14 +1,9 @@
 import type { CheckoutSession, PaymentCustomer, PaymentMode, Policy } from "./types";
-import type { PaymentAdapter } from "./payment-adapter";
+import type { CreateCheckoutOptions, PaymentAdapter } from "./payment-adapter";
 
 type LiveStripeCheckoutAdapterConfig = {
   secretKey: string;
   appUrl: string;
-};
-
-type CreateCheckoutOptions = {
-  idempotencyKey?: string;
-  statusToken?: string;
 };
 
 type StripeCheckoutResponse = {

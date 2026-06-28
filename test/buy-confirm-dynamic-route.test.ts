@@ -57,12 +57,18 @@ const savedEnv: Record<string, string | undefined> = {};
 
 beforeEach(async () => {
   // Snapshot & set env vars that getSeededAgent reads
-  for (const key of ["PIO_AGENT_SEED_KEY", "PIO_SEED_STRIPE_CUSTOMER", "PIO_SEED_STRIPE_PAYMENT_METHOD"]) {
+  for (const key of [
+    "PIO_AGENT_SEED_KEY",
+    "PIO_SEED_STRIPE_CUSTOMER",
+    "PIO_SEED_STRIPE_PAYMENT_METHOD",
+    "PIO_POLICY_STATUS_TOKEN_SECRET"
+  ]) {
     savedEnv[key] = process.env[key];
   }
   process.env.PIO_AGENT_SEED_KEY = "pio_seed_key_test";
   process.env.PIO_SEED_STRIPE_CUSTOMER = "cus_test_seed";
   process.env.PIO_SEED_STRIPE_PAYMENT_METHOD = "pm_card_visa";
+  process.env.PIO_POLICY_STATUS_TOKEN_SECRET = "test-status-secret";
 
   // Seed a priced dynamic policy so the route can find it
   store = new InMemoryPolicyStore();

@@ -6,6 +6,7 @@ import type {
   Money
 } from "./types";
 import type { PaymentAdapter } from "./payment-adapter";
+import { signPolicyStatusToken } from "./policy-status-token";
 import { quotePolicy } from "./workflow";
 import type { PolicyStore } from "./policy-store";
 
@@ -360,13 +361,19 @@ export async function handleDynamicPurchaseConfirmation(
   }
 
   const customer = await payments.createCustomer(policy.customerName);
-  const checkout = await payments.createCheckout(policy, customer);
+  const checkout = await payments.createCheckout(policy, customer, {
+    statusToken: signPolicyStatusToken(policy.id, policyStatusTokenExpiry())
+  });
   const response: Extract<AgentPurchaseConfirmationResponse, { accepted: true }> = {
     accepted: true, reasonCode: "checkout_created", agentId: agentId as string, quoteId: quoteId as string,
     idempotencyKey: idempotencyKey as string, idempotentReplay: false, policy, checkout, nextAction: "complete_stripe_checkout"
   };
   confirmations.set(idempotencyKey as string, { fingerprint, response });
   return response;
+}
+
+function policyStatusTokenExpiry(): number {
+  return Math.floor(Date.now() / 1000) + 3600;
 }
 
 function parseMoney(value: unknown): Money | undefined {

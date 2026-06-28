@@ -35,11 +35,11 @@ export default function BuySuccessPage() {
   const [elapsedMs, setElapsedMs] = useState(0);
   const startRef = useRef<number>(Date.now());
 
-  const hasCredentials = Boolean(policyId && token);
+  const hasCredentials = Boolean(policyId && (token || sessionId));
   const activated = data?.activated === true;
 
   useEffect(() => {
-    if (!policyId || !token) return;
+    if (!policyId || (!token && !sessionId)) return;
     if (activated) return;
 
     let cancelled = false;
@@ -47,7 +47,10 @@ export default function BuySuccessPage() {
 
     const tick = async () => {
       try {
-        const res = await fetch(`/api/buy/policy-status/${policyId}?t=${encodeURIComponent(token)}`);
+        const params = new URLSearchParams();
+        if (token) params.set("t", token);
+        if (sessionId) params.set("session_id", sessionId);
+        const res = await fetch(`/api/buy/policy-status/${policyId}?${params.toString()}`);
         if (res.ok && !cancelled) setData((await res.json()) as StatusResponse);
       } catch {
         /* keep polling; surfaces as "taking longer" after the timeout */
@@ -70,7 +73,7 @@ export default function BuySuccessPage() {
       cancelled = true;
       clearInterval(id);
     };
-  }, [policyId, token, activated]);
+  }, [policyId, sessionId, token, activated]);
 
   const view = resolvePolicyStatusView({ hasCredentials, activated, elapsedMs, timeoutMs: TIMEOUT_MS });
 

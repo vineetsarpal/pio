@@ -43,7 +43,8 @@ const routeEnv = {
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   PIO_AGENT_SEED_KEY: process.env.PIO_AGENT_SEED_KEY,
   PIO_SEED_STRIPE_CUSTOMER: process.env.PIO_SEED_STRIPE_CUSTOMER,
-  PIO_SEED_STRIPE_PAYMENT_METHOD: process.env.PIO_SEED_STRIPE_PAYMENT_METHOD
+  PIO_SEED_STRIPE_PAYMENT_METHOD: process.env.PIO_SEED_STRIPE_PAYMENT_METHOD,
+  PIO_POLICY_STATUS_TOKEN_SECRET: process.env.PIO_POLICY_STATUS_TOKEN_SECRET
 };
 
 beforeEach(() => {
@@ -52,6 +53,7 @@ beforeEach(() => {
   process.env.PIO_AGENT_SEED_KEY = "pio_seed_key_123";
   process.env.PIO_SEED_STRIPE_CUSTOMER = "cus_test_seed";
   process.env.PIO_SEED_STRIPE_PAYMENT_METHOD = "pm_card_visa";
+  process.env.PIO_POLICY_STATUS_TOKEN_SECRET = "test-status-secret";
 });
 
 afterEach(() => {
@@ -136,6 +138,48 @@ describe("handleDynamicPurchaseConfirmation", () => {
     expect(result.policy.id).toBe(quoteId);
     expect(result.checkout).toBeDefined();
     expect(result.nextAction).toBe("complete_stripe_checkout");
+  });
+
+  it("passes a signed policy status token into dynamic checkout creation", async () => {
+    const store = new InMemoryPolicyStore();
+    const quoteId = await seedPricedPolicy(store);
+    const storedPolicy = await store.getPolicy(quoteId);
+    if (!storedPolicy) throw new Error("Expected stored policy");
+
+    let capturedStatusToken: string | undefined;
+    const payments = {
+      mode: "stripe_test_mode" as const,
+      async createCustomer(name: string) {
+        return { id: "cus_test_pio_0001", name };
+      },
+      async createCheckout(
+        policy: typeof storedPolicy,
+        _customer: { id: string; name: string },
+        options?: { statusToken?: string }
+      ) {
+        capturedStatusToken = options?.statusToken;
+        return {
+          id: "cs_test_pio_premium_0001",
+          url: "https://checkout.stripe.com/c/pay/cs_test_pio_premium_0001",
+          premium: policy.premium,
+          mode: "stripe_test_mode" as const
+        };
+      }
+    };
+
+    const result = await handleDynamicPurchaseConfirmation(
+      {
+        agentId: "agent-test-token",
+        quoteId,
+        idempotencyKey: "idem-dynamic-token",
+        authorization: "confirm_purchase",
+        maximumPremium: { amount: storedPolicy.premium.amount + 100, currency: "USD" }
+      },
+      { store, payments }
+    );
+
+    expect(result.accepted).toBe(true);
+    expect(capturedStatusToken).toMatch(/^\d+\.[0-9a-f]+$/);
   });
 
   it("rejects with premium_cap_exceeded when maximumPremium < stored premium", async () => {
