@@ -29,8 +29,11 @@ Then open `http://localhost:3000`. The key surfaces are:
 
 - `/` — product landing page
 - `/buy` — customer buy flow with a live agent-intake panel (dynamic quote → checkout)
+- `/buy/success` — Stripe return page that polls verified policy activation
+- `/agents` — human-readable agent discovery page generated from the Agent Card
 - `/ops` — operator dashboard: live pricing queue + manual review queue
 - `/ops/[policyId]` — per-policy operator detail and settlement view
+- `/.well-known/agent-card.json` — A2A-style discovery document for buyer agents
 
 ### Database (Neon Postgres)
 
@@ -68,6 +71,7 @@ needs no database.
 | `PIO_AGENT_SEED_KEY` / `PIO_AGENT_SEED_ID` | Seeded buyer-agent identity for the `/buy` and headless purchase paths. |
 | `PIO_SEED_STRIPE_CUSTOMER` / `PIO_SEED_STRIPE_PAYMENT_METHOD` | Seeded Stripe customer + vaulted test card for off-session agent purchases. |
 | `PIO_OPERATOR_KEY` | Privileged operator (Gauge) key for the `/api/operator/*` surface. Must match the value the Hermes operator instance presents. |
+| `PIO_POLICY_STATUS_TOKEN_SECRET` | HMAC secret for the buyer-facing `/api/buy/policy-status/[policyId]` capability token included in Stripe success URLs. |
 | `AERODATABOX_RAPIDAPI_KEY` | Server-only key for flight-number / departure-date lookup. |
 
 The operator dashboard and the deterministic core work without Stripe credentials. PIO intentionally accepts only `sk_test_` keys for the demo payment path.
@@ -127,6 +131,7 @@ PIO separates deterministic insurance logic from the agent orchestration and ext
 ### UI
 - `app/page.tsx` — product landing page
 - `app/buy/*` — customer buy flow + success page
+- `app/agents/page.tsx` — human-readable agent discovery page rendered from the same Agent Card source as `/.well-known/agent-card.json`
 - `app/ops/*` — operator dashboard (pricing queue, review queue) and per-policy detail
 - `components/*` — `AgentIntake` (live pricing feed), `PricingQueue`, `LocationPicker`, and shared formatting helpers
 - `app/api/*` — HTTP endpoints for quoting, agent coverage, dynamic pricing, Stripe events, and operator review
@@ -181,6 +186,14 @@ runtime endpoint. The HTTP API surfaces the individual steps below.
 - `GET  /api/flights/lookup` — flight-number + date lookup (AeroDataBox).
 - `GET  /api/geocode`, `GET /api/geocode/reverse` — location lookup for the buy form.
 
+### Agent discovery
+
+- `GET /.well-known/agent-card.json` — canonical A2A-style Agent Card for buyer agents.
+- `GET /api/agent-card` — implementation route behind the well-known rewrite.
+- `GET /agents` — human-readable companion page generated from the same `buildAgentCard` source.
+
+The Agent Card describes the REST buyer API, not an A2A JSON-RPC server. It advertises HTTP+JSON skills for dynamic coverage requests, dynamic purchase confirmation, off-session purchase, and policy-status reads. Authenticated purchase and policy-read calls accept `x-pio-agent-key` or `Authorization: Bearer <key>`.
+
 Request a single-product quote:
 
 ```bash
@@ -202,11 +215,15 @@ curl -X POST http://localhost:3000/api/quote \
 ### Customer-owned agent coverage
 
 - `POST /api/agent/coverage-request` — agent requests a quote (static path).
+- `POST /api/agent/coverage-request` with `pricing: "dynamic"` — opens a dynamic pricing job and returns immediately with `pricing_pending`.
 - `POST /api/agent/confirm-purchase` — agent confirms a static quote.
 - `POST /api/agent/confirm-dynamic-purchase` — agent confirms a priced dynamic quote (premium replayed from the stored policy; no re-quote).
 - `POST /api/agent/purchase` — headless off-session purchase: seeded agent key charges its vaulted card; activation arrives via the PaymentIntent webhook.
 - `GET  /api/agent/policy/[policyId]` — read a single policy's status + payment ledger (lets a headless driver confirm `policy_issued`).
 - `POST /api/buy/confirm-dynamic/[quoteId]` — browser-facing buy proxy; supplies the seeded agent identity server-side so the agent key never reaches the browser.
+- `GET  /api/buy/policy-status/[policyId]` — buyer-facing status poll used by `/buy/success`; accepts the signed `t` capability token or verifies the Stripe Checkout `session_id`.
+
+The initial coverage request route is open and rate-limited so the browser buy flow can create quotes. Purchase confirmation, off-session purchase, and `/api/agent/policy/[policyId]` require the seeded buyer-agent key.
 
 ```bash
 curl -X POST http://localhost:3000/api/agent/coverage-request \
