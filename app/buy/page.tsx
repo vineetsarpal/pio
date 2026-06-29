@@ -61,7 +61,7 @@ const products = [
     id: "flight_delay" as const,
     name: "Flight delay protection",
     description: "Trip cover priced with route delay risk.",
-    trigger: "Arrival delay > 90 min",
+    trigger: "Arrival delay > 180 min",
     api: "Flight status API",
     icon: Plane
   }
@@ -81,7 +81,7 @@ const defaultFlight = {
   customerName: "John Doe",
   passengerName: "John Doe",
   airline: "Air Canada",
-  flightNumber: "AC101",
+  flightNumber: "AC400",
   originAirport: "YYZ",
   destinationAirport: "YVR",
   departureTime: "2026-06-21T17:15",
@@ -579,8 +579,8 @@ function FlightFields() {
         label="Flight number"
         value={flight.flightNumber}
         onChange={(value) => updateFlightField("flightNumber", value.toUpperCase())}
-        helperText="Include the airline code, for example AC101."
-        placeholder="AC101"
+        helperText="Include the airline code, for example AC400."
+        placeholder="AC400"
         maxLength={7}
         pattern="[A-Za-z0-9 ]{3,7}"
         inputClassName="uppercase"

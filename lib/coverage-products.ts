@@ -185,7 +185,7 @@ export const coverageProducts = [
     name: "Flight delay protection",
     tagline: "Fixed payout when arrival delay exceeds the covered threshold.",
     api: "Flight status API",
-    trigger: "Arrival delay > 90 minutes"
+    trigger: "Arrival delay > 180 minutes"
   }
 ];
 
@@ -369,7 +369,7 @@ export class AeroDataBoxFlightStatusPricingApi implements FlightStatusPricingApi
 
       const profile = flightRiskProfile(input);
       const observedDelay = Math.max(flight.departureDelayMinutes, flight.arrivalDelayMinutes);
-      const liveDelayAdjustment = observedDelay >= 90 ? 0.2 : observedDelay >= 30 ? 0.08 : 0;
+      const liveDelayAdjustment = observedDelay >= 180 ? 0.2 : observedDelay >= 60 ? 0.08 : 0;
       const probability = clamp(profile.probability + liveDelayAdjustment, 0.08, 0.95);
       const score = Math.round(probability * 100);
 
@@ -533,7 +533,7 @@ function buildFlightPolicy(
     trigger: {
       variable: "arrival_delay_minutes",
       operator: ">",
-      threshold: 90,
+      threshold: 180,
       aggregation: "max",
       window: {
         start: input.departureTime,

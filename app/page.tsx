@@ -13,7 +13,7 @@ const products = [
     name: "Flight delay protection",
     description:
       "Trip coverage priced from route delay risk and paid when arrival delay crosses the covered threshold.",
-    trigger: "Arrival delay > 90 min",
+    trigger: "Arrival delay > 180 min",
     api: "Flight status API",
     icon: Plane
   }
@@ -56,16 +56,16 @@ export default function Home() {
               className="max-w-4xl animate-rise text-balance font-display text-5xl font-semibold leading-[0.98] tracking-tight sm:text-6xl lg:text-[4.7rem]"
               style={{ animationDelay: "140ms" }}
             >
-              Quote, price &amp; issue parametric policies from one{" "}
-              <span className="italic text-rain">guided workflow.</span>
+              Experience <span className="italic text-rain">Agentic Insurance</span>
             </h1>
             <p
               className="mt-6 max-w-2xl animate-rise text-pretty text-lg leading-8 text-ink-soft"
               style={{ animationDelay: "220ms" }}
             >
-              A customer chooses a coverage type, the agent captures only the required details, the
-              relevant risk API informs premium, and PIO prepares a policy packet before Stripe
-              test-mode checkout.
+              Parametric cover for rain and flight delays — priced instantly from live risk and paid
+              out the moment your trigger is met. No claims, no adjusters, no waiting. And it&apos;s
+              agentic end to end: an AI operator prices and settles every policy, and any AI agent can
+              discover and buy coverage on its own.
             </p>
             <div
               className="mt-8 flex animate-rise flex-wrap gap-3"
@@ -145,8 +145,8 @@ export default function Home() {
             </span>
             <div>
               <p className="kicker text-mint">How it works</p>
-              <h2 className="mt-1 max-w-3xl font-display text-3xl font-semibold leading-tight">
-                Get covered in minutes, <span className="text-rain">paid out automatically.</span>
+              <h2 className="mt-1 font-display text-3xl font-semibold leading-tight">
+                Get covered in minutes, <span className="text-rain">payouts triggered&nbsp;automatically.</span>
               </h2>
             </div>
           </div>
