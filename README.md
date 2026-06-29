@@ -4,6 +4,17 @@ PIO is a hackathon prototype for automated, evidence-grounded parametric coverag
 
 **Demo/compliance note:** PIO is not a live insurance product and does not issue real coverage or legally binding payouts. The reference flow uses Stripe test mode to demonstrate premium collection, payout workflow boundaries, and auditability for hackathon purposes.
 
+## Demo
+
+▶️ **[Watch the demo](https://x.com/VineetSarpal/status/2071587335901175869)**
+
+<!--
+For native inline playback, drag the demo .mp4/.mov directly into this section
+using GitHub's web editor (https://github.com/vineetsarpal/pio/edit/main/README.md).
+GitHub uploads it to its CDN and renders an inline player. Size limit: 10 MB
+(100 MB with GitHub Pro). The committed link above is the fallback.
+-->
+
 PIO quotes two parametric products, each with a deterministic trigger:
 
 - **Rain event protection** — fixed payout when rainfall crosses the covered trigger (rainfall total > 5 mm over the event window).
