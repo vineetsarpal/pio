@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Archivo, Fraunces, Spline_Sans_Mono } from "next/font/google";
 import Link from "next/link";
-import { Gauge } from "lucide-react";
+import { Gauge, ArrowRight } from "lucide-react";
 import "./globals.css";
 
 const display = Fraunces({
@@ -30,8 +30,6 @@ export const metadata: Metadata = {
 };
 
 const nav = [
-  { href: "/", label: "Front" },
-  { href: "/buy", label: "Coverage" },
   { href: "/ops", label: "Operations" },
   { href: "/agents", label: "Agents" }
 ];
@@ -55,9 +53,6 @@ export default function RootLayout({
               <span className="font-display text-2xl font-semibold leading-none tracking-tight">
                 pio
               </span>
-              <span className="hidden font-mono text-[0.62rem] uppercase tracking-kicker text-ink-soft sm:inline">
-                Parametric Insurance Operations
-              </span>
             </Link>
             <nav className="flex items-center gap-1 font-mono text-[0.7rem] uppercase tracking-wider">
               {nav.map((item) => (
@@ -69,11 +64,18 @@ export default function RootLayout({
                   {item.label}
                 </Link>
               ))}
+              <Link
+                href="/buy"
+                className="ml-1 inline-flex items-center gap-1.5 border border-ink bg-ink px-3 py-1.5 font-semibold text-card transition-colors hover:border-rain hover:bg-rain"
+              >
+                Get Covered
+                <ArrowRight size={13} />
+              </Link>
             </nav>
           </div>
           <div className="border-t border-line bg-rain text-card">
             <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-1 font-mono text-[0.6rem] uppercase tracking-kicker sm:px-6 lg:px-8">
-              <span>Vol. I — No. 1</span>
+              <span>Version 0.1</span>
               <span className="hidden sm:inline">Evidence-Grounded · Deterministic Settlement</span>
               <span>Stripe Test Mode</span>
             </div>
@@ -84,7 +86,7 @@ export default function RootLayout({
 
         <footer className="mt-2 border-t-2 border-ink bg-card/70">
           <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-6 font-mono text-[0.66rem] uppercase tracking-wider text-ink-soft sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-            <span>pio — Parametric Insurance Operations · Hackathon Prototype</span>
+            <span>pio · Hackathon Prototype</span>
             <span>Money &amp; claims governed by typed functions, not free-form output.</span>
           </div>
         </footer>

@@ -2,7 +2,6 @@ import { Activity, ArrowRight, CloudRain, Plane, ShieldCheck } from "lucide-reac
 
 const products = [
   {
-    figure: "Fig. 01",
     name: "Rain event protection",
     description:
       "Outdoor event coverage priced from weather risk and paid when rainfall crosses a fixed trigger.",
@@ -11,7 +10,6 @@ const products = [
     icon: CloudRain
   },
   {
-    figure: "Fig. 02",
     name: "Flight delay protection",
     description:
       "Trip coverage priced from route delay risk and paid when arrival delay crosses the covered threshold.",
@@ -22,10 +20,10 @@ const products = [
 ];
 
 const ledger = [
-  ["01", "Quote", "Deterministic pricing reads live risk"],
-  ["02", "Collect", "Stripe test-mode premium, event-verified"],
-  ["03", "Monitor", "Oracle observations vs. fixed trigger"],
-  ["04", "Settle", "Typed functions approve & request payout"]
+  ["01", "Quote", "Choose a coverage type and get an instant price from live risk data."],
+  ["02", "Pay", "Pay the premium securely by card; your policy activates once payment clears."],
+  ["03", "Monitor", "We track the live data feed against your policy's trigger for you."],
+  ["04", "Payout", "If the trigger is met, your payout is sent automatically — no claims to file."]
 ];
 
 export default function Home() {
@@ -124,7 +122,6 @@ export default function Home() {
                     <span className="flex h-12 w-12 items-center justify-center border border-ink bg-rain/10 text-rain transition-transform group-hover:-translate-y-0.5">
                       <Icon size={22} />
                     </span>
-                    <span className="kicker">{product.figure}</span>
                   </div>
                   <h3 className="mt-5 font-display text-2xl font-semibold">{product.name}</h3>
                   <p className="mt-2 max-w-md text-pretty leading-7 text-ink-soft">
@@ -147,10 +144,9 @@ export default function Home() {
               <Activity size={22} />
             </span>
             <div>
-              <p className="kicker text-mint">Demo flow</p>
+              <p className="kicker text-mint">How it works</p>
               <h2 className="mt-1 max-w-3xl font-display text-3xl font-semibold leading-tight">
-                Customer quote in <span className="text-rain">/buy</span>, controls &amp; audit in{" "}
-                <span className="text-rain">/ops</span>
+                Get covered in minutes, <span className="text-rain">paid out automatically.</span>
               </h2>
             </div>
           </div>
