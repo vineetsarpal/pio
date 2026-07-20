@@ -2,7 +2,7 @@ node_modules
 .next
 .npm-cache
 .vercel
-docs/
+docs.local/
 dist
 coverage
 .DS_Store
